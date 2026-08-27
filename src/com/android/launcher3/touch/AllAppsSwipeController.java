@@ -24,7 +24,10 @@ import static com.android.app.animation.Interpolators.FINAL_FRAME;
 import static com.android.app.animation.Interpolators.INSTANT;
 import static com.android.app.animation.Interpolators.LINEAR;
 import static com.android.launcher3.LauncherState.ALL_APPS;
+import static com.android.launcher3.LauncherState.APP_LIBRARY;
 import static com.android.launcher3.LauncherState.NORMAL;
+
+import com.android.launcher3.LauncherPrefs;
 import static com.android.launcher3.states.StateAnimationConfig.ANIM_ALL_APPS_FADE;
 import static com.android.launcher3.states.StateAnimationConfig.ANIM_DEPTH;
 import static com.android.launcher3.states.StateAnimationConfig.ANIM_HOTSEAT_FADE;
@@ -156,11 +159,13 @@ public class AllAppsSwipeController extends AbstractStateChangeTouchController {
         if (AbstractFloatingView.getTopOpenView(mLauncher) != null) {
             return false;
         }
-        if (!mLauncher.isInState(NORMAL) && !mLauncher.isInState(ALL_APPS)) {
-            // Don't listen for the swipe gesture if we are already in some other state.
+        if (!mLauncher.isInState(NORMAL) && !mLauncher.isInState(ALL_APPS) && !mLauncher.isInState(APP_LIBRARY)) {
             return false;
         }
         if (mLauncher.isInState(ALL_APPS) && !mLauncher.getAppsView().shouldContainerScroll(ev)) {
+            return false;
+        }
+        if (mLauncher.isInState(APP_LIBRARY) && mLauncher.getAppLibraryView() != null && !mLauncher.getAppLibraryView().shouldContainerScroll(ev)) {
             return false;
         }
         return true;
@@ -168,9 +173,15 @@ public class AllAppsSwipeController extends AbstractStateChangeTouchController {
 
     @Override
     protected LauncherState getTargetState(LauncherState fromState, boolean isDragTowardPositive) {
+        boolean isAppLibraryEnabled = LauncherPrefs.get(mLauncher).get(LauncherPrefs.APP_LIBRARY_ENABLED);
         if (fromState == NORMAL && shouldOpenAllApps(isDragTowardPositive)) {
-            return mLauncher.canOpenAllApps() ? ALL_APPS : NORMAL;
+            if (!mLauncher.canOpenAllApps()) {
+                return NORMAL;
+            }
+            return isAppLibraryEnabled ? APP_LIBRARY : ALL_APPS;
         } else if (fromState == ALL_APPS && !isDragTowardPositive) {
+            return NORMAL;
+        } else if (fromState == APP_LIBRARY && !isDragTowardPositive) {
             return NORMAL;
         }
         return fromState;
