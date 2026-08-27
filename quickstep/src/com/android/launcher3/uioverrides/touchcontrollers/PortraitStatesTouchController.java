@@ -77,12 +77,11 @@ public class PortraitStatesTouchController extends AbstractStateChangeTouchContr
             // Otherwise, don't intercept so they can scroll recents, dismiss a task, etc.
             return false;
         }
+        if (mLauncher.isInState(APP_LIBRARY)) {
+            return false;
+        }
         if (mLauncher.isInState(ALL_APPS)) {
             if (!mLauncher.getAppsView().shouldContainerScroll(ev)) {
-                return false;
-            }
-        } else if (mLauncher.isInState(APP_LIBRARY)) {
-            if (mLauncher.getAppLibraryView() != null && !mLauncher.getAppLibraryView().shouldContainerScroll(ev)) {
                 return false;
             }
         } else if (mLauncher.isInState(OVERVIEW)) {
@@ -90,7 +89,6 @@ public class PortraitStatesTouchController extends AbstractStateChangeTouchContr
                 return false;
             }
         } else {
-            // For non-normal states, only listen if the event originated below the hotseat height
             if (!interceptAnywhere && !isTouchOverHotseat(mLauncher, ev)) {
                 return false;
             }
@@ -105,8 +103,6 @@ public class PortraitStatesTouchController extends AbstractStateChangeTouchContr
     protected LauncherState getTargetState(LauncherState fromState, boolean isDragTowardPositive) {
         boolean isAppLibraryEnabled = LauncherPrefs.get(mLauncher).get(LauncherPrefs.APP_LIBRARY_ENABLED);
         if (fromState == ALL_APPS && !isDragTowardPositive) {
-            return NORMAL;
-        } else if (fromState == APP_LIBRARY && !isDragTowardPositive) {
             return NORMAL;
         } else if (fromState == NORMAL && shouldOpenAllApps(isDragTowardPositive)) {
             if (isAppLibraryEnabled && mLauncher.canOpenAllApps()) {
