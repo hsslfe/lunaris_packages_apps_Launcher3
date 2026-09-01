@@ -21,6 +21,7 @@ import static com.android.launcher3.anim.AnimatorListeners.forEndCallback;
 import static com.android.launcher3.logging.StatsLogManager.LAUNCHER_STATE_HOME;
 import static com.android.launcher3.logging.StatsLogManager.LAUNCHER_STATE_OVERVIEW;
 import static com.android.launcher3.testing.shared.TestProtocol.ALL_APPS_STATE_ORDINAL;
+import static com.android.launcher3.testing.shared.TestProtocol.APP_LIBRARY_STATE_ORDINAL;
 import static com.android.launcher3.testing.shared.TestProtocol.BACKGROUND_APP_STATE_ORDINAL;
 import static com.android.launcher3.testing.shared.TestProtocol.EDIT_MODE_STATE_ORDINAL;
 import static com.android.launcher3.testing.shared.TestProtocol.HINT_STATE_ORDINAL;
@@ -43,6 +44,7 @@ import androidx.annotation.StringRes;
 import com.android.launcher3.deviceprofile.DeviceProperties;
 import com.android.launcher3.statemanager.BaseState;
 import com.android.launcher3.statemanager.StateManager;
+import com.android.launcher3.states.AppLibraryState;
 import com.android.launcher3.states.EditModeState;
 import com.android.launcher3.states.SpringLoadedState;
 import com.android.launcher3.testing.shared.TestProtocol;
@@ -116,7 +118,7 @@ public abstract class LauncherState implements BaseState<LauncherState> {
                 }
             };
 
-    private static final LauncherState[] sAllStates = new LauncherState[11];
+    private static final LauncherState[] sAllStates = new LauncherState[12];
 
     /**
      * TODO: Create a separate class for NORMAL state.
@@ -155,6 +157,7 @@ public abstract class LauncherState implements BaseState<LauncherState> {
             OverviewState.newBackgroundState(BACKGROUND_APP_STATE_ORDINAL);
     public static final LauncherState OVERVIEW_SPLIT_SELECT =
             OverviewState.newSplitSelectState(OVERVIEW_SPLIT_SELECT_ORDINAL);
+    public static final LauncherState APP_LIBRARY = new AppLibraryState(APP_LIBRARY_STATE_ORDINAL);
 
     public final int ordinal;
 
