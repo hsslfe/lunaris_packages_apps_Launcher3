@@ -57,6 +57,7 @@ import static com.android.launcher3.popup.SystemShortcut.ADD_TO_HOME_SCREEN;
 import static com.android.launcher3.popup.SystemShortcut.APP_INFO;
 import static com.android.launcher3.popup.SystemShortcut.BUBBLE_SHORTCUT;
 import static com.android.launcher3.popup.SystemShortcut.DONT_SUGGEST_APP;
+import com.android.launcher3.applibrary.AppLibraryTouchController;
 import static com.android.launcher3.popup.SystemShortcut.FLOATING;
 import static com.android.launcher3.popup.SystemShortcut.INSTALL;
 import static com.android.launcher3.popup.SystemShortcut.KILL_APP;
@@ -961,13 +962,14 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         }
 
         list.add(new StatusBarTouchController(this, () -> this.isInState(LauncherState.NORMAL)));
-
         if (enableExpressiveDismissTaskMotion()) {
-            list.add(new TaskViewLaunchTouchController<>(this, mTaskViewRecentsTouchContext));
-            list.add(new TaskViewDismissTouchController<>(this, mTaskViewRecentsTouchContext));
+            list.add(new TaskViewLaunchTouchController<>(this, mTaskViewRec...));
+            list.add(new TaskViewDismissTouchController<>(this, mTaskViewRec...));
         } else {
-            list.add(new TaskViewTouchControllerDeprecated<>(this, mTaskViewRecentsTouchContext));
+            list.add(new TaskViewTouchControllerDeprecated<>(this, mTaskVie...));
         }
+
+        list.add(new AppLibraryTouchController(this));
         return list.toArray(new TouchController[list.size()]);
     }
 

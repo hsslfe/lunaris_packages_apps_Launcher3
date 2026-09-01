@@ -179,6 +179,10 @@ import com.android.launcher3.allapps.AppDrawerStyle;
 import com.android.launcher3.allapps.DiscoveryBounce;
 import com.android.launcher3.anim.AnimationSuccessListener;
 import com.android.launcher3.anim.PropertyListBuilder;
+import com.android.launcher3.applibrary.AppLibraryTouchController;
+import com.android.launcher3.applibrary.AppLibraryTransitionController;
+import com.android.launcher3.applibrary.model.AppLibraryModel;
+import com.android.launcher3.applibrary.view.AppLibraryContainerView;
 import com.android.launcher3.apppairs.AppPairIcon;
 import com.android.launcher3.celllayout.CellPosMapper;
 import com.android.launcher3.celllayout.CellPosMapper.CellPos;
@@ -368,6 +372,9 @@ public class Launcher extends StatefulActivity<LauncherState>
     @Thunk
     ActivityAllAppsContainerView<Launcher> mAppsView;
     AllAppsTransitionController mAllAppsController;
+    AppLibraryContainerView mAppLibraryView;
+    AppLibraryTransitionController mAppLibraryTransitionController;
+    AppLibraryModel mAppLibraryModel;
     // Views that should be blurred when All Apps is open or depth is otherwise applied.
     private List<View> mDepthBlurTargets;
 
@@ -474,6 +481,7 @@ public class Launcher extends StatefulActivity<LauncherState>
 
         initDragController();
         mAllAppsController = new AllAppsTransitionController(this);
+        mAppLibraryTransitionController = new AppLibraryTransitionController(this);
         mStateManager = new StateManager<>(this, NORMAL);
         if (refactorTaskbarUiState()) {
             mStateManager.setLauncherUiState(mLauncherUiState);
@@ -1384,6 +1392,12 @@ public class Launcher extends StatefulActivity<LauncherState>
         // Setup the drag controller (drop targets have to be added in reverse order in priority)
         mDropTargetBar.setup(mDragController);
         mAllAppsController.setupViews(mScrimView, mAppsView);
+        mAppLibraryView = findViewById(R.id.app_library_view);
+        if (mAppLibraryView != null) {
+            mAppLibraryTransitionController.setupViews(mScrimView, mAppLibraryView);
+            mAppLibraryModel = new AppLibraryModel(this, mAppsView.getAppsStore());
+            mAppLibraryView.setModel(mAppLibraryModel);
+        }
 
         mWorkspace.getPageIndicator().setShouldAutoHide(LauncherPrefs.AUTO_HIDE_DOTS.get(this) &&
                 !shouldEnableMouseInteractionChanges(mWorkspace.getContext()));
@@ -1800,6 +1814,10 @@ public class Launcher extends StatefulActivity<LauncherState>
         mAppWidgetHolder.destroy();
         mWidgetVisibilityTracker.destroy();
         mWidgetPickerDataProvider.destroy();
+
+        if (mAppLibraryModel != null) {
+            mAppLibraryModel.destroy();
+        }
 
         TextKeyListener.getInstance().release();
         mModelCallbacks.clearPendingBinds();
@@ -2737,6 +2755,7 @@ public class Launcher extends StatefulActivity<LauncherState>
     @Override
      public void collectStateHandlers(List<StateHandler<LauncherState>> out) {
         out.add(getAllAppsController());
+        out.add(getAppLibraryController());
         out.add(getWorkspace());
     }
 
@@ -2744,7 +2763,11 @@ public class Launcher extends StatefulActivity<LauncherState>
         if (!canOpenAllApps()) {
             return new TouchController[] {getDragController()};
         }
-        return new TouchController[] {getDragController(), new AllAppsSwipeController(this)};
+        return new TouchController[] {
+                getDragController(),
+                new AllAppsSwipeController(this),
+                new AppLibraryTouchController(this)
+        };
     }
 
     public boolean canOpenAllApps() {
@@ -3018,6 +3041,18 @@ public class Launcher extends StatefulActivity<LauncherState>
 
     public AllAppsTransitionController getAllAppsController() {
         return mAllAppsController;
+    }
+
+    public AppLibraryContainerView getAppLibraryView() {
+        return mAppLibraryView;
+    }
+
+    public AppLibraryTransitionController getAppLibraryController() {
+        return mAppLibraryTransitionController;
+    }
+
+    public AppLibraryModel getAppLibraryModel() {
+        return mAppLibraryModel;
     }
 
     @Override
