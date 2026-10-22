@@ -73,6 +73,7 @@ import static com.android.systemui.shared.system.QuickStepContract.getWindowCorn
 import static com.android.systemui.shared.system.QuickStepContract.supportsRoundedCornersOnWindows;
 import static com.android.wm.shell.Flags.enableDynamicInsetsForAppLaunch;
 
+import android.view.animation.AnimationUtils;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
@@ -213,13 +214,13 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
      */
     public static final int STATUS_BAR_TRANSITION_PRE_DELAY = 96;
 
-    public static final long APP_LAUNCH_DURATION = 440;
+    public static final long APP_LAUNCH_DURATION = 500;
 
-    private static final long APP_LAUNCH_ALPHA_DURATION = 138;
-    private static final long APP_LAUNCH_ALPHA_START_DELAY = 33;
+    private static final long APP_LAUNCH_ALPHA_DURATION = 50;
+    private static final long APP_LAUNCH_ALPHA_START_DELAY = 25;
 
     public static final int ANIMATION_NAV_FADE_IN_DURATION = 266;
-    public static final int ANIMATION_NAV_FADE_OUT_DURATION = 160;
+    public static final int ANIMATION_NAV_FADE_OUT_DURATION = 133;
     public static final long ANIMATION_DELAY_NAV_FADE_IN =
             APP_LAUNCH_DURATION - ANIMATION_NAV_FADE_IN_DURATION;
     public static final Interpolator NAV_FADE_IN_INTERPOLATOR =
@@ -229,7 +230,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
     public static final int RECENTS_LAUNCH_DURATION = 336;
     private static final int LAUNCHER_RESUME_START_DELAY = 100;
-    private static final int CLOSING_TRANSITION_DURATION_MS = 330;
+    private static final int CLOSING_TRANSITION_DURATION_MS = 250;
     public static final int SPLIT_LAUNCH_DURATION = 370;
     public static final int SPLIT_DIVIDER_ANIM_DURATION = 100;
 
@@ -240,7 +241,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
     // TODO(b/236145847): Tune TASKBAR_TO_HOME_DURATION to 383 after conflict with unlock animation
     // is solved.
     private static final int TASKBAR_TO_HOME_DURATION_FAST = 300;
-    private static final int TASKBAR_TO_HOME_DURATION_SLOW = 650;
+    private static final int TASKBAR_TO_HOME_DURATION_SLOW = 1000;
     protected static final int CONTENT_SCALE_DURATION = 350;
 
     private static final Interpolator APP_LAUNCH_INTERPOLATOR;
@@ -290,7 +291,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
     private static final int MAX_NUM_TASKS = 5;
 
     // Cross-fade duration between App Widget and App when launching from widget.
-    private static final int WIDGET_CROSSFADE_DURATION_MILLIS = 180;
+    private static final int WIDGET_CROSSFADE_DURATION_MILLIS = 125;
 
     private static final float MAX_SCRIM_ALPHA_DARK = 0.8f;
     private static final float MAX_SCRIM_ALPHA_LIGHT = 0.2f;
@@ -376,8 +377,10 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             mSystemUiProxy.setStartingWindowListener(mStartingWindowListener);
         }
 
-        mOpeningXInterpolator = APP_LAUNCH_X_INTERPOLATOR;
-        mOpeningInterpolator = APP_LAUNCH_INTERPOLATOR;
+        mOpeningXInterpolator = AnimationUtils.loadInterpolator(
+                launcher, R.interpolator.app_open_x);
+        mOpeningInterpolator = AnimationUtils.loadInterpolator(
+                launcher, R.interpolator.emphasized_interpolator);
         mCoordinateTransfer = new RemoteAnimationCoordinateTransfer(mLauncher);
         mLatencyTracker = LatencyTracker.getInstance(launcher);
 
@@ -985,7 +988,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
             final Interpolator cornerInterpolator = new PathInterpolator(0.2f, 0f, 0.2f, 1f);
             FloatProp mWindowRadius = new FloatProp(initialWindowRadius,
-                    getWindowCornerRadius(mLauncher), cornerInterpolator);
+                    getWindowCornerRadius(mLauncher), mOpeningInterpolator);
             FloatProp mShadowRadius = new FloatProp(0, finalShadowRadius,
                     mOpeningInterpolator);
 
@@ -999,7 +1002,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                     mOpeningInterpolator);
 
             FloatProp mNavFadeOut = new FloatProp(1f, 0f, clampToDuration(
-                    NAV_FADE_OUT_INTERPOLATOR, 20, ANIMATION_NAV_FADE_OUT_DURATION,
+                    NAV_FADE_OUT_INTERPOLATOR, 0, ANIMATION_NAV_FADE_OUT_DURATION,
                     APP_LAUNCH_DURATION));
             FloatProp mNavFadeIn = new FloatProp(0f, 1f, clampToDuration(
                     NAV_FADE_IN_INTERPOLATOR, ANIMATION_DELAY_NAV_FADE_IN,
@@ -1251,7 +1254,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         appAnimator.addUpdateListener(new MultiValueUpdateListener() {
             float mAppWindowScale = 1;
             final FloatProp mWidgetForegroundAlpha = new FloatProp(1, 0, clampToDuration(
-                    DECELERATE_1_5, 0, WIDGET_CROSSFADE_DURATION_MILLIS / 2, APP_LAUNCH_DURATION));
+                    LINEAR, 0, WIDGET_CROSSFADE_DURATION_MILLIS / 2, APP_LAUNCH_DURATION));
 
             final FloatProp mWidgetFallbackBackgroundAlpha = new FloatProp(0, 1,
                     clampToDuration(LINEAR, 0, 75, APP_LAUNCH_DURATION));
@@ -1262,7 +1265,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                     APP_LAUNCH_DURATION));
             final Interpolator cornerInterpolator = new PathInterpolator(0.2f, 0f, 0.2f, 1f);
             final FloatProp mWindowRadius = new FloatProp(initialWindowRadius, finalWindowRadius,
-                    cornerInterpolator);
+                    mOpeningInterpolator);
             final FloatProp mCornerRadiusProgress = new FloatProp(0, 1, mOpeningInterpolator);
 
             // Window & widget background positioning bounds
@@ -1898,10 +1901,10 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         float translateY = isFreeform
             ? mClosingFreeformWindowTransY
             : mClosingWindowTransY * 1.0f;
-        float endScale = isFreeform ? 0.95f : 0.94f;
+        float endScale = isFreeform ? 0.95f : 1f;
         Interpolator alphaInterpolator = isFreeform
                 ? clampToDuration(LINEAR, 0, 100, duration)
-                : clampToDuration(LINEAR, 40, 210, duration);
+                : clampToDuration(LINEAR, 25, 125, duration);
         closingAnimator.addUpdateListener(new MultiValueUpdateListener() {
             FloatProp mDy = new FloatProp(0, translateY, DECELERATE_1_7);
             FloatProp mScale = new FloatProp(1f, endScale, DECELERATE_1_7);
@@ -2623,7 +2626,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         new PathInterpolator(0.05f, 0f, 0.1f, 1f);
 
         public float getCornerRadius(float progress) {
-            float curvedProgress = CORNER_LEAD_INTERPOLATOR.getInterpolation(progress);
+            float curvedProgress = progress;
             return mStartRadius + curvedProgress * (mEndRadius - mStartRadius);
         }
 
@@ -2672,10 +2675,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                             .setAlpha(getWindowAlpha(progress));
 
                     float cornerRadius = getCornerRadius(progress) / scale;
-                    if (Math.abs(mLastCornerRadius - cornerRadius) >= 4f || progress >= 1f) {
-                        builder.setCornerRadius(cornerRadius);
-                        mLastCornerRadius = cornerRadius;
-                    }
+                    builder.setCornerRadius(cornerRadius);
                 } else if (target.mode == MODE_OPENING) {
                     mMatrix.setTranslate(mTmpPos.x, mTmpPos.y);
                     builder.setMatrix(mMatrix)
