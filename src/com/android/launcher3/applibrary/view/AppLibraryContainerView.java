@@ -110,7 +110,7 @@ public class AppLibraryContainerView extends FrameLayout
         int spanCount = 2;
         if (mActivityContext instanceof Launcher) {
             DeviceProfile dp = ((Launcher) mActivityContext).getDeviceProfile();
-            if (dp.getDeviceProperties().isLargeScreen() || dp.getDeviceProperties().isLandscape()) {
+            if (dp.getDeviceProperties().isTablet() || dp.getDeviceProperties().isLandscape()) {
                 spanCount = 3;
             }
         }

@@ -163,7 +163,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
     private int calculateAdaptiveSpanCount() {
         if (mActivityContext instanceof Launcher) {
             DeviceProfile dp = ((Launcher) mActivityContext).getDeviceProfile();
-            if (dp.getDeviceProperties().isLargeScreen()) {
+            if (dp.getDeviceProperties().isTablet()) {
                 return dp.getDeviceProperties().isLandscape() ? 6 : 5;
             }
             if (dp.getDeviceProperties().isLandscape()) {
