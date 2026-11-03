@@ -454,6 +454,8 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
 
         @JvmField val APP_LIBRARY_ENABLED = backedUpItem("pref_app_library_enabled", false)
         @JvmField val APP_LIBRARY_SINGLE_PAGE = backedUpItem("pref_app_library_single_page", false)
+        @JvmField val APP_LIBRARY_HIDE_APP_DRAWER =
+            backedUpItem("pref_app_library_hide_app_drawer", true)        
 
         @JvmField
         val FIXED_LANDSCAPE_MODE = backedUpItem(SettingsMisc.FIXED_LANDSCAPE_MODE, false)

@@ -494,7 +494,12 @@ public class AppLibraryContainerView extends FrameLayout
     @Override
     public void setInsets(Rect insets) {
         mInsets.set(insets);
-        setPadding(insets.left, insets.top, insets.right, insets.bottom);
+
+        if (mAppLibraryContent != null) {
+            mAppLibraryContent.setPadding(
+                    insets.left, insets.top, insets.right, insets.bottom);
+        }
+
         if (mExpandedSheet != null) {
             mExpandedSheet.setInsets(insets);
         }
