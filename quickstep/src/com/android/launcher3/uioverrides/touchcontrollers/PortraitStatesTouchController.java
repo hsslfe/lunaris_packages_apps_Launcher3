@@ -102,10 +102,12 @@ public class PortraitStatesTouchController extends AbstractStateChangeTouchContr
     @Override
     protected LauncherState getTargetState(LauncherState fromState, boolean isDragTowardPositive) {
         boolean isAppLibraryEnabled = LauncherPrefs.get(mLauncher).get(LauncherPrefs.APP_LIBRARY_ENABLED);
+        boolean hideAppDrawer = LauncherPrefs.get(mLauncher).get(LauncherPrefs.APP_LIBRARY_HIDE_APP_DRAWER);
+
         if (fromState == ALL_APPS && !isDragTowardPositive) {
             return NORMAL;
         } else if (fromState == NORMAL && shouldOpenAllApps(isDragTowardPositive)) {
-            if (isAppLibraryEnabled && mLauncher.canOpenAllApps()) {
+            if (isAppLibraryEnabled && hideAppDrawer && mLauncher.canOpenAllApps()) {
                 return APP_LIBRARY;
             }
             return mLauncher.canOpenAllApps() ? ALL_APPS : NORMAL;

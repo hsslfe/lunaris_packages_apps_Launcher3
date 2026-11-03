@@ -115,6 +115,14 @@
         android:persistent="true"
         android:dependency="pref_app_library_enabled" />
 
+    <SwitchPreferenceCompat
+        android:key="pref_app_library_hide_app_drawer"
+        android:title="@string/pref_app_library_hide_app_drawer_title"
+        android:summary="@string/pref_app_library_hide_app_drawer_summary"
+        android:defaultValue="true"
+        android:persistent="true"
+        android:dependency="pref_app_library_enabled" />
+
     <ListPreference
         android:key="pref_allapps_search_placement"
         android:title="@string/drawer_search_title"
