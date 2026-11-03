@@ -622,4 +622,7 @@
     <string name="app_category_food">Food</string>
     <string name="app_category_other">Other</string>
 
+    <string name="pref_app_library_hide_app_drawer_title">Hide App Drawer</string>
+    <string name="pref_app_library_hide_app_drawer_summary">Open App Library instead of the normal app drawer when swiping up</string>
+
 </resources>

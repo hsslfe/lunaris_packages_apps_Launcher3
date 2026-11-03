@@ -171,11 +171,12 @@ public class AllAppsSwipeController extends AbstractStateChangeTouchController {
     @Override
     protected LauncherState getTargetState(LauncherState fromState, boolean isDragTowardPositive) {
         boolean isAppLibraryEnabled = LauncherPrefs.get(mLauncher).get(LauncherPrefs.APP_LIBRARY_ENABLED);
+        boolean hideAppDrawer = LauncherPrefs.get(mLauncher).get(LauncherPrefs.APP_LIBRARY_HIDE_APP_DRAWER);
         if (fromState == NORMAL && shouldOpenAllApps(isDragTowardPositive)) {
             if (!mLauncher.canOpenAllApps()) {
                 return NORMAL;
             }
-            return isAppLibraryEnabled ? APP_LIBRARY : ALL_APPS;
+            return isAppLibraryEnabled && hideAppDrawer ? APP_LIBRARY : ALL_APPS;
         } else if (fromState == ALL_APPS && !isDragTowardPositive) {
             return NORMAL;
         }
