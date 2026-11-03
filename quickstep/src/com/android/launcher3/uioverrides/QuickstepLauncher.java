@@ -963,10 +963,10 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
         list.add(new StatusBarTouchController(this, () -> this.isInState(LauncherState.NORMAL)));
         if (enableExpressiveDismissTaskMotion()) {
-            list.add(new TaskViewLaunchTouchController<>(this, mTaskViewRec...));
-            list.add(new TaskViewDismissTouchController<>(this, mTaskViewRec...));
+            list.add(new TaskViewLaunchTouchController<>(this, mTaskViewRecentsTouchContext));
+            list.add(new TaskViewDismissTouchController<>(this, mTaskViewRecentsTouchContext));
         } else {
-            list.add(new TaskViewTouchControllerDeprecated<>(this, mTaskVie...));
+            list.add(new TaskViewTouchControllerDeprecated<>(this, mTaskViewRecentsTouchContext));
         }
 
         list.add(new AppLibraryTouchController(this));

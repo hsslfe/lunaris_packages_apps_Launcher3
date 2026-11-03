@@ -2,11 +2,12 @@ package com.android.launcher3.states;
 
 import static com.android.app.animation.Interpolators.ACCELERATE_2;
 import static com.android.app.animation.Interpolators.DECELERATE_2;
-import static com.android.launcher3.Utilities.shouldReduceWorkspaceBlurUsage;
 import static com.android.launcher3.logging.StatsLogManager.LAUNCHER_STATE_HOME;
 
 import android.graphics.Color;
 
+import android.content.Context;
+import com.android.quickstep.util.BaseDepthController;
 import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.LauncherUiState;
@@ -46,8 +47,7 @@ public class AppLibraryState extends LauncherState {
         float width = launcher.getDeviceProfile().getDeviceProperties().getWidthPx();
         boolean isRtl = Utilities.isRtl(launcher.getResources());
         float shift = isRtl ? width * 0.35f : -width * 0.35f;
-        float scale = shouldReduceWorkspaceBlurUsage(launcher) ? NO_SCALE : 0.95f;
-        return new ScaleAndTranslation(scale, shift, NO_OFFSET);
+        return new ScaleAndTranslation(0.95f, shift, NO_OFFSET);
     }
 
     @Override
@@ -83,16 +83,18 @@ public class AppLibraryState extends LauncherState {
     }
 
     @Override
-    protected float getDepthUnchecked(ActivityContext context) {
-        return shouldReduceWorkspaceBlurUsage(context.asContext())
-                ? 0f
-                : context.getDeviceProfile().getBottomSheetProfile().getBottomSheetDepth();
+    protected <DEVICE_PROFILE_CONTEXT extends Context & ActivityContext>
+            float getDepthUnchecked(DEVICE_PROFILE_CONTEXT context) {
+        if (context.getDeviceProfile().shouldShowAllAppsOnSheet(context)) {
+            return context.getDeviceProfile().getBottomSheetProfile().getBottomSheetDepth();
+        } else {
+            return BaseDepthController.DEPTH_60_PERCENT;
+        }
     }
 
     @Override
-    public boolean shouldBlurWorkspace(Launcher launcher, LauncherState targetState) {
-        return !shouldReduceWorkspaceBlurUsage(launcher)
-                && (targetState == LauncherState.APP_LIBRARY || targetState == NORMAL);
+    public boolean shouldBlurWorkspace(LauncherState targetState) {
+        return targetState == APP_LIBRARY || targetState == NORMAL;
     }
 
     @Override

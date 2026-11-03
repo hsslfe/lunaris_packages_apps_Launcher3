@@ -2280,17 +2280,16 @@ public class Launcher extends StatefulActivity<LauncherState>
                     getStateManager().goToState(NORMAL, false);
                 }
             });
-        }
 
-        RunnableList result = super.startActivitySafely(v, intent, item);
-        if (result != null && v instanceof BubbleTextView) {
-            // This is set to the view that launched the activity that navigated the user away
-            // from launcher. Since there is no callback for when the activity has finished
-            // launching, enable the press state and keep this reference to reset the press
-            // state when we return to launcher.
-            BubbleTextView btv = (BubbleTextView) v;
-            btv.setStayPressed(true);
-            result.add(() -> btv.setStayPressed(false));
+            if (v instanceof BubbleTextView) {
+                // This is set to the view that launched the activity that navigated the user away
+                // from launcher. Since there is no callback for when the activity has finished
+                // launching, enable the press state and keep this reference to reset the press
+                // state when we return to launcher.
+                BubbleTextView btv = (BubbleTextView) v;
+                btv.setStayPressed(true);
+                result.add(() -> btv.setStayPressed(false));
+            }
         }
         return result;
     }
