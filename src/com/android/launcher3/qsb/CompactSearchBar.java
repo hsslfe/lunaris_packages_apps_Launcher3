@@ -497,7 +497,7 @@ public class CompactSearchBar extends FrameLayout
                 launchGemini();
                 break;
             case ACTION_UNIVERSAL_SEARCH:
-                UniversalSearchLauncher.launch(mContext);
+                UniversalSearchLauncher.launchSpotlight(mContext);
                 break;
             case ACTION_GOOGLE_SEARCH:
             default:
