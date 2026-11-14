@@ -409,6 +409,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
             return;
         }
         mUniversalSearchActive = active;
+        mSearchUiManager.onUniversalSearchStateChanged(active);
         rebindAdapters(true);
         if (active) {
             // Hide the app grid before the container is shown, without waiting for results.
@@ -426,7 +427,10 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
     /** Invoke when the current search session is finished. */
     public void onClearSearchResult() {
         getMainAdapterProvider().clearHighlightedItem();
-        mUniversalSearchActive = false;
+        if (mUniversalSearchActive) {
+            mUniversalSearchActive = false;
+            mSearchUiManager.onUniversalSearchStateChanged(false);
+        }
         animateToSearchState(false);
         rebindAdapters(true);
     }

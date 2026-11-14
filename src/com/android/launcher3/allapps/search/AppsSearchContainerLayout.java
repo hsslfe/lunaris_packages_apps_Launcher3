@@ -105,6 +105,7 @@ public class AppsSearchContainerLayout extends ExtendedEditText
     private final AxViewBackdropBlur mBackdropBlur = new AxViewBackdropBlur(this, false);
     private final GradientDrawable mBackgroundTintDrawable = new GradientDrawable();
     private boolean mCrossWindowBlurEnabled;
+    private boolean mIsVisibleToUser;
     private int mBlurDepth = 45;
     private final Consumer<Boolean> mCrossWindowBlurListener =
             this::onCrossWindowBlurEnabledChanged;
@@ -214,7 +215,9 @@ public class AppsSearchContainerLayout extends ExtendedEditText
     @Override
     public void onVisibilityAggregated(boolean isVisible) {
         super.onVisibilityAggregated(isVisible);
+        mIsVisibleToUser = isVisible;
         mBackdropBlur.onVisibilityAggregated(isVisible);
+        updateBlurState();
     }
 
     @Override
@@ -251,19 +254,36 @@ public class AppsSearchContainerLayout extends ExtendedEditText
     }
 
     private boolean canDrawBlur() {
-        return isBlurAvailable() && isAttachedToWindow()
+        return isUniversalSearchActive() && mIsVisibleToUser
+                && isBlurAvailable() && isAttachedToWindow()
                 && getWidth() > 0 && getHeight() > 0
                 && getWindowVisibility() == VISIBLE;
     }
 
     private void updateBlurState() {
-        mBackdropBlur.setEnabled(mUsePillSearchBar && canDrawBlur());
-        mBackdropBlur.setSurfaceAlpha(Math.round(255f
-                * Utilities.boundToRange(getAlpha(), 0f, 1f)));
+        boolean enabled = mUsePillSearchBar && canDrawBlur();
+        mBackdropBlur.setEnabled(enabled);
+        if (enabled) {
+            mBackdropBlur.setSurfaceAlpha(Math.round(255f
+                    * Utilities.boundToRange(getAlpha(), 0f, 1f)));
+        }
     }
 
     private void hideBlur() {
         mBackdropBlur.setEnabled(false);
+    }
+
+    private boolean isUniversalSearchActive() {
+        return mAppsView != null && mAppsView.isUniversalSearchActive();
+    }
+
+    @Override
+    public void onUniversalSearchStateChanged(boolean active) {
+        if (mUsePillSearchBar) {
+            setUpPillSearchBackground(active);
+        }
+        updateBlurState();
+        invalidate();
     }
 
     private void updateUniversalSearchDrawablesAndGravity() {
@@ -291,7 +311,7 @@ public class AppsSearchContainerLayout extends ExtendedEditText
         setCursorVisible(hasText);
     }
 
-    private void setUpUniversalSearchBackground() {
+    private void setUpPillSearchBackground(boolean active) {
         float cornerRadius = getHeight() > 0 ? (getHeight() / 2f) : (Utilities.dpToPx(48) / 2f);
         mBackgroundTintDrawable.setShape(GradientDrawable.RECTANGLE);
         mBackgroundTintDrawable.setCornerRadius(cornerRadius);
@@ -301,19 +321,29 @@ public class AppsSearchContainerLayout extends ExtendedEditText
                 ? Themes.getAttrColor(getContext(), R.attr.qsbFillColorThemed)
                 : Themes.getAttrColor(getContext(), R.attr.qsbFillColor);
 
-        int opacity = Utilities.boundToRange(LauncherPrefs.HOTSEAT_QSB_OPACITY.get(getContext()), 20, 100);
-        int alpha = Math.round((isDarkTheme ? 175f : 195f) * opacity / 100f);
-        int fillColor = Color.argb(alpha, Color.red(baseColor), Color.green(baseColor), Color.blue(baseColor));
-
-        int strokeWidth = Math.max(1, Utilities.dpToPx(1.5f));
-        int strokeColor = isDarkTheme
-                ? Color.argb(140, 255, 255, 255)
-                : Color.argb(90, 0, 0, 0);
+        // Keep the idle pill opaque so blur cannot appear partway through opening the drawer.
+        int fillColor = Color.rgb(
+                Color.red(baseColor), Color.green(baseColor), Color.blue(baseColor));
+        int strokeWidth = 0;
+        int strokeColor = Color.TRANSPARENT;
+        if (active) {
+            int opacity = Utilities.boundToRange(
+                    LauncherPrefs.HOTSEAT_QSB_OPACITY.get(getContext()), 20, 100);
+            int alpha = Math.round((isDarkTheme ? 175f : 195f) * opacity / 100f);
+            fillColor = Color.argb(
+                    alpha, Color.red(baseColor), Color.green(baseColor), Color.blue(baseColor));
+            strokeWidth = Math.max(1, Utilities.dpToPx(1.5f));
+            strokeColor = isDarkTheme
+                    ? Color.argb(140, 255, 255, 255)
+                    : Color.argb(90, 0, 0, 0);
+        }
 
         mBackgroundTintDrawable.setColor(fillColor);
         mBackgroundTintDrawable.setStroke(strokeWidth, strokeColor);
         setClipToOutline(false);
-        setBackground(mBackgroundTintDrawable);
+        if (getBackground() != mBackgroundTintDrawable) {
+            setBackground(mBackgroundTintDrawable);
+        }
     }
 
     private void updateSearchBarStyle() {
@@ -340,7 +370,7 @@ public class AppsSearchContainerLayout extends ExtendedEditText
         setTextSize(TypedValue.COMPLEX_UNIT_PX,
                 getResources().getDimension(R.dimen.compact_search_bar_text_size));
         setPaddingRelative(Utilities.dpToPx(12), getPaddingTop(), Utilities.dpToPx(12), getPaddingBottom());
-        setUpUniversalSearchBackground();
+        setUpPillSearchBackground(isUniversalSearchActive());
     }
 
     private void updateLegacySearchBarStyle() {

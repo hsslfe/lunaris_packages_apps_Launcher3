@@ -41,6 +41,9 @@ public interface SearchUiManager {
      */
     void focusSearchField();
 
+    /** Notifies the search UI when the universal search session becomes active or inactive. */
+    default void onUniversalSearchStateChanged(boolean active) {}
+
     /**
      * Called before dispatching a key event, in case the search manager wants to initialize
      * some UI beforehand.
