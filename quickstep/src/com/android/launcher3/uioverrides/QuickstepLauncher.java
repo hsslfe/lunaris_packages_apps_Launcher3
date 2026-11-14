@@ -547,6 +547,9 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public RunnableList startActivitySafely(View v, Intent intent, ItemInfo item) {
+        if (mUnlockAnimationController != null) {
+            mUnlockAnimationController.cancel();
+        }
         RunnableList deferred = new RunnableList();
         if (mAppTransitionManager != null) {
             deferred.add(mAppTransitionManager.beginImmediateAppLaunch(v, item));
@@ -1240,7 +1243,19 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getAction() == KeyEvent.ACTION_DOWN && mUnlockAnimationController != null) {
+            mUnlockAnimationController.cancel();
+        }
         return tryHandleBackKey(event) || super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN
+                && mUnlockAnimationController != null) {
+            mUnlockAnimationController.cancel();
+        }
+        return super.dispatchTouchEvent(event);
     }
 
     // TODO (b/267248420) Once the recents input consumer has been removed, there is no need to
