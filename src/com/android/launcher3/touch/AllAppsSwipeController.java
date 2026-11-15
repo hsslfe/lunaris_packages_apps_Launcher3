@@ -28,6 +28,7 @@ import static com.android.launcher3.LauncherState.APP_LIBRARY;
 import static com.android.launcher3.LauncherState.NORMAL;
 
 import com.android.launcher3.LauncherPrefs;
+import com.android.launcher3.applibrary.AppLibraryTouchController;
 import static com.android.launcher3.states.StateAnimationConfig.ANIM_ALL_APPS_FADE;
 import static com.android.launcher3.states.StateAnimationConfig.ANIM_DEPTH;
 import static com.android.launcher3.states.StateAnimationConfig.ANIM_HOTSEAT_FADE;
@@ -149,6 +150,12 @@ public class AllAppsSwipeController extends AbstractStateChangeTouchController {
 
     @Override
     protected boolean canInterceptTouch(MotionEvent ev) {
+        if (mLauncher.isInState(NORMAL)
+                && LauncherPrefs.get(mLauncher).get(LauncherPrefs.APP_LIBRARY_ENABLED)
+                && LauncherPrefs.get(mLauncher).get(LauncherPrefs.APP_LIBRARY_HIDE_APP_DRAWER)
+                && AppLibraryTouchController.isTouchInNavigationRegion(mLauncher, ev)) {
+            return false;
+        }
         if (AppDrawerStyle.isIos(AppDrawerStyle.get(mLauncher))) {
             return false;
         }
@@ -194,6 +201,11 @@ public class AllAppsSwipeController extends AbstractStateChangeTouchController {
         float startVerticalShift = mFromState.getVerticalProgress(mLauncher) * range;
         float endVerticalShift = mToState.getVerticalProgress(mLauncher) * range;
         float totalShift = endVerticalShift - startVerticalShift;
+        // App Library is a horizontal surface; its inherited vertical progress equals Home's.
+        // Give the optional upward opening gesture a finite, full-height tracking range.
+        if (mFromState == NORMAL && mToState == APP_LIBRARY) {
+            totalShift = -range;
+        }
         return 1 / totalShift;
     }
 

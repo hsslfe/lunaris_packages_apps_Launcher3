@@ -310,6 +310,33 @@ public class AppLibraryContainerView extends FrameLayout
     }
 
     @Override
+    public void onSearchSubmit() {
+        if (mSearchBar == null || !mSearchBar.isSearching() || mModel == null
+                || mSearchBar.getEditText() == null) {
+            return;
+        }
+        String query = mSearchBar.getEditText().getText().toString().trim();
+        if (query.isEmpty()) {
+            return;
+        }
+        List<AppInfo> results = mModel.searchApps(query);
+        if (results.isEmpty()) {
+            return;
+        }
+        mSearchBar.hideKeyboard();
+        mSearchBar.getEditText().clearFocus();
+        // Use an attached source view and the normal item click path (including profile and
+        // disabled-app handling), even if RecyclerView has not laid out the results yet.
+        Object previousTag = mSearchBar.getTag();
+        mSearchBar.setTag(results.get(0));
+        try {
+            mActivityContext.getItemOnClickListener().onClick(mSearchBar);
+        } finally {
+            mSearchBar.setTag(previousTag);
+        }
+    }
+
+    @Override
     public void onSearchStateChanged(boolean isSearching) {
         if (mExpandedSheet != null && mExpandedSheet.isOpen()) {
             mExpandedSheet.hide(false);

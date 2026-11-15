@@ -20,6 +20,7 @@ import static com.android.launcher3.LauncherAnimUtils.SUCCESS_TRANSITION_PROGRES
 import static com.android.launcher3.LauncherAnimUtils.TABLET_BOTTOM_SHEET_SUCCESS_TRANSITION_PROGRESS;
 import static com.android.launcher3.LauncherAnimUtils.newCancelListener;
 import static com.android.launcher3.LauncherState.ALL_APPS;
+import static com.android.launcher3.LauncherState.APP_LIBRARY;
 import static com.android.launcher3.LauncherState.NORMAL;
 import static com.android.launcher3.LauncherState.OVERVIEW;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadScroll;
@@ -42,6 +43,7 @@ import com.android.launcher3.LauncherAnimUtils;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.anim.AnimatorPlaybackController;
+import com.android.launcher3.applibrary.AppLibrarySwipeAnimation;
 import com.android.launcher3.logger.LauncherAtom;
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.states.StateAnimationConfig;
@@ -385,6 +387,21 @@ public abstract class AbstractStateChangeTouchController
 
     protected void updateSwipeCompleteAnimation(ValueAnimator animator, long expectedDuration,
             LauncherState targetState, float velocity, boolean isFling) {
+        if (mFromState == APP_LIBRARY || mToState == APP_LIBRARY) {
+            // The generic swipe path predicts one frame ahead on release. For this horizontal
+            // surface that creates a visible jump, especially when a short swipe returns Home.
+            float start = Utilities.boundToRange(mCurrentAnimation.getProgressFraction(), 0f, 1f);
+            float end = targetState == mToState ? 1f : 0f;
+            float distance = end - start;
+            float progressVelocity = velocity * mProgressMultiplier;
+            long duration = AppLibrarySwipeAnimation.getDuration(distance, progressVelocity);
+            float slope = AppLibrarySwipeAnimation.getInitialSlope(
+                    distance, progressVelocity, duration);
+            animator.setFloatValues(start, end);
+            animator.setDuration(duration).setInterpolator(
+                    t -> AppLibrarySwipeAnimation.interpolate(t, slope));
+            return;
+        }
         animator.setDuration(expectedDuration)
                 .setInterpolator(scrollInterpolatorForVelocity(velocity));
     }

@@ -6,7 +6,9 @@ import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.AttributeSet;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.ImageButton;
@@ -22,6 +24,7 @@ public class AppLibrarySearchBar extends LinearLayout {
     public interface OnSearchListener {
         void onSearchQueryChanged(String query);
         void onSearchStateChanged(boolean isSearching);
+        void onSearchSubmit();
     }
 
     private EditText mSearchInput;
@@ -62,6 +65,24 @@ public class AppLibrarySearchBar extends LinearLayout {
 
         if (mSearchInput != null) {
             mSearchInput.setGravity(Gravity.CENTER);
+            mSearchInput.setOnEditorActionListener((view, actionId, event) -> {
+                boolean enter = event != null && (event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                        || event.getKeyCode() == KeyEvent.KEYCODE_NUMPAD_ENTER);
+                boolean submit = actionId == EditorInfo.IME_ACTION_SEARCH
+                        || actionId == EditorInfo.IME_ACTION_GO
+                        || actionId == EditorInfo.IME_ACTION_DONE;
+                if (!enter && !submit) {
+                    return false;
+                }
+                // Consume both halves of a hardware key press, launching only on key-up.
+                if (event == null || (event.getAction() == KeyEvent.ACTION_UP
+                        && !event.isCanceled())) {
+                    if (mIsSearching && mListener != null) {
+                        mListener.onSearchSubmit();
+                    }
+                }
+                return true;
+            });
             mSearchInput.addTextChangedListener(new TextWatcher() {
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {}

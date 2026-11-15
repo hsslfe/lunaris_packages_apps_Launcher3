@@ -23,6 +23,7 @@ import static com.android.launcher3.LauncherState.NORMAL;
 import static com.android.launcher3.LauncherState.OVERVIEW;
 
 import com.android.launcher3.LauncherPrefs;
+import com.android.launcher3.applibrary.AppLibraryTouchController;
 
 import android.view.MotionEvent;
 
@@ -61,6 +62,12 @@ public class PortraitStatesTouchController extends AbstractStateChangeTouchContr
 
     @Override
     protected boolean canInterceptTouch(MotionEvent ev) {
+        if (mLauncher.isInState(NORMAL)
+                && LauncherPrefs.get(mLauncher).get(LauncherPrefs.APP_LIBRARY_ENABLED)
+                && LauncherPrefs.get(mLauncher).get(LauncherPrefs.APP_LIBRARY_HIDE_APP_DRAWER)
+                && AppLibraryTouchController.isTouchInNavigationRegion(mLauncher, ev)) {
+            return false;
+        }
         if (mLauncher.isInState(ALL_APPS) && !mLauncher.canOpenAllApps()) {
             return false;
         }
@@ -137,6 +144,11 @@ public class PortraitStatesTouchController extends AbstractStateChangeTouchContr
         float endVerticalShift = mToState.getVerticalProgress(mLauncher) * range;
 
         float totalShift = endVerticalShift - startVerticalShift;
+        // App Library is a horizontal surface; its inherited vertical progress equals Home's.
+        // Give the optional upward opening gesture a finite, full-height tracking range.
+        if (mFromState == NORMAL && mToState == APP_LIBRARY) {
+            totalShift = -range;
+        }
 
         final StateAnimationConfig config = totalShift == 0 ? new StateAnimationConfig()
                 : getConfigForStates(mFromState, mToState);

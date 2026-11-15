@@ -2,9 +2,7 @@ package com.android.launcher3.applibrary;
 
 import static com.android.launcher3.AbstractFloatingView.TYPE_ALL;
 import static com.android.launcher3.AbstractFloatingView.getTopOpenViewWithType;
-import static com.android.launcher3.BaseActivity.ACTIVITY_STATE_TRANSITION_ACTIVE;
 import static com.android.launcher3.LauncherState.APP_LIBRARY;
-import static com.android.launcher3.LauncherState.BACKGROUND_APP;
 import static com.android.launcher3.LauncherState.NORMAL;
 
 import android.view.MotionEvent;
@@ -26,6 +24,14 @@ public class AppLibraryTouchController extends AbstractStateChangeTouchControlle
         super(launcher, SingleAxisSwipeDetector.HORIZONTAL);
     }
 
+    /** Reserve the system navigation area and a small buffer above it for system gestures. */
+    public static boolean isTouchInNavigationRegion(Launcher launcher, MotionEvent ev) {
+        int bottomInset = launcher.getDeviceProfile().getInsets().bottom;
+        int buffer = Utilities.dpToPx(24, launcher);
+        return (ev.getEdgeFlags() & Utilities.EDGE_NAV_BAR) != 0
+                || ev.getY() >= launcher.getDragLayer().getHeight() - bottomInset - buffer;
+    }
+
     private boolean isAppLibraryEnabled() {
         return LauncherPrefs.get(mLauncher).get(LauncherPrefs.APP_LIBRARY_ENABLED);
     }
@@ -36,7 +42,7 @@ public class AppLibraryTouchController extends AbstractStateChangeTouchControlle
 
     @Override
     protected boolean canInterceptTouch(MotionEvent ev) {
-        if (!isAppLibraryEnabled()) {
+        if (!isAppLibraryEnabled() || isTouchInNavigationRegion(mLauncher, ev)) {
             return false;
         }
 
@@ -85,9 +91,9 @@ public class AppLibraryTouchController extends AbstractStateChangeTouchControlle
             return fromState;
         }
 
-        boolean isRtl = Utilities.isRtl(mLauncher.getResources());
-        boolean isTowardAppLibrary = isRtl ? isDragTowardPositive : !isDragTowardPositive;
-        boolean isTowardWorkspace = isRtl ? !isDragTowardPositive : isDragTowardPositive;
+        // BaseSwipeDetector already mirrors horizontal displacement and velocity in RTL.
+        boolean isTowardAppLibrary = !isDragTowardPositive;
+        boolean isTowardWorkspace = isDragTowardPositive;
 
         if (fromState == NORMAL && isTowardAppLibrary) {
             return APP_LIBRARY;
@@ -110,14 +116,7 @@ public class AppLibraryTouchController extends AbstractStateChangeTouchControlle
         float range = mLauncher.getDeviceProfile().getDeviceProperties().getWidthPx();
         long maxAccuracy = (long) (2 * range);
 
-        boolean isRtl = Utilities.isRtl(mLauncher.getResources());
-        float totalShift = (mToState == APP_LIBRARY) ? (isRtl ? range : -range) : (isRtl ? -range : range);
-
-        if (mFromState == NORMAL && mLauncher.getAppLibraryController() != null) {
-            if (Float.compare(mLauncher.getAppLibraryController().getProgress(), 1f) != 0) {
-                mLauncher.getAppLibraryController().setState(NORMAL);
-            }
-        }
+        float totalShift = mToState == APP_LIBRARY ? -range : range;
 
         final StateAnimationConfig config = getConfigForStates(mFromState, mToState);
         config.duration = maxAccuracy;
