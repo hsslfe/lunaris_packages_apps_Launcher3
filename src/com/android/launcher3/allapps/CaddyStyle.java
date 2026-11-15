@@ -14,20 +14,21 @@ import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.util.Themes;
 
-final class CaddyStyle {
+/** Shared surface styling; Caddy and App Library retain independent models and interactions. */
+public final class CaddyStyle {
     private CaddyStyle() { }
 
-    static int dp(Context context, float value) {
+    public static int dp(Context context, float value) {
         return Math.round(value * context.getResources().getDisplayMetrics().density);
     }
 
-    static int textColor(Context context) {
+    public static int textColor(Context context) {
         return LauncherPrefs.ALL_APPS_DARK_TEXT.get(context)
                 ? context.getColor(R.color.all_apps_label_color_dark_forced)
                 : Themes.getAttrColor(context, android.R.attr.textColorPrimary);
     }
 
-    static Drawable background(Context context, boolean sheet) {
+    public static Drawable background(Context context, boolean sheet) {
         int base = Themes.getAttrColor(context, R.attr.allAppsScrimColor);
         if (LauncherPrefs.APP_DRAWER_CUSTOM_COLOR_ENABLED.get(context)) {
             base = Utilities.isDarkTheme(context)

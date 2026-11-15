@@ -4,8 +4,6 @@ import static com.android.app.animation.Interpolators.ACCELERATE_2;
 import static com.android.app.animation.Interpolators.DECELERATE_2;
 import static com.android.launcher3.logging.StatsLogManager.LAUNCHER_STATE_HOME;
 
-import android.graphics.Color;
-
 import android.content.Context;
 import com.android.quickstep.util.BaseDepthController;
 import com.android.launcher3.Launcher;
@@ -13,7 +11,6 @@ import com.android.launcher3.LauncherState;
 import com.android.launcher3.LauncherUiState;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
-import com.android.launcher3.util.Themes;
 import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.ScrimColors;
 
@@ -99,8 +96,8 @@ public class AppLibraryState extends LauncherState {
 
     @Override
     public ScrimColors getWorkspaceScrimColor(Launcher launcher) {
-        int backgroundColor = Themes.getAttrColor(launcher, R.attr.allAppsScrimColor);
-        return new ScrimColors(backgroundColor, Color.TRANSPARENT);
+        // Match the drawer/Caddy wallpaper dim, including custom colors and opacity.
+        return ALL_APPS.getWorkspaceScrimColor(launcher);
     }
 
     @Override

@@ -1,6 +1,8 @@
 package com.android.launcher3.applibrary.view;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
+import android.widget.ImageView;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
@@ -18,6 +20,7 @@ import android.widget.TextView;
 import androidx.annotation.Nullable;
 
 import com.android.launcher3.R;
+import com.android.launcher3.allapps.CaddyStyle;
 
 public class AppLibrarySearchBar extends LinearLayout {
 
@@ -55,6 +58,7 @@ public class AppLibrarySearchBar extends LinearLayout {
         mCancelButton = findViewById(R.id.app_library_search_cancel);
 
         if (mSearchBox != null) {
+            mSearchBox.setBackground(CaddyStyle.background(getContext(), false));
             mSearchBox.setOnClickListener(v -> {
                 if (!mIsSearching) {
                     setSearching(true);
@@ -126,6 +130,20 @@ public class AppLibrarySearchBar extends LinearLayout {
         if (mCancelButton != null) {
             mCancelButton.setOnClickListener(v -> resetSearch());
         }
+    }
+
+    public void refreshAppearance() {
+        if (mSearchBox != null) mSearchBox.setBackground(CaddyStyle.background(getContext(), false));
+        if (mSearchInput != null) {
+            mSearchInput.setTextColor(CaddyStyle.textColor(getContext()));
+            mSearchInput.setHintTextColor(androidx.core.graphics.ColorUtils.setAlphaComponent(
+                    CaddyStyle.textColor(getContext()), 150));
+        }
+        ColorStateList tint = ColorStateList.valueOf(CaddyStyle.textColor(getContext()));
+        ImageView searchIcon = findViewById(R.id.app_library_search_icon);
+        if (searchIcon != null) searchIcon.setImageTintList(tint);
+        if (mClearButton != null) mClearButton.setImageTintList(tint);
+        if (mCancelButton != null) mCancelButton.setTextColor(tint);
     }
 
     public void setOnSearchListener(OnSearchListener listener) {

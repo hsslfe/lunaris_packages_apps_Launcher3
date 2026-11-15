@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.Launcher;
 import com.android.launcher3.R;
+import com.android.launcher3.allapps.CaddyStyle;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.views.ActivityContext;
 
@@ -132,6 +133,7 @@ public class AppLibrarySearchAdapter extends RecyclerView.Adapter<RecyclerView.V
         if (holder instanceof HeaderViewHolder) {
             HeaderViewHolder hvh = (HeaderViewHolder) holder;
             hvh.mTitle.setText(item.title);
+            hvh.mTitle.setTextColor(CaddyStyle.textColor(hvh.itemView.getContext()));
         } else if (holder instanceof AppViewHolder) {
             AppViewHolder avh = (AppViewHolder) holder;
             AppInfo app = item.app;
@@ -143,6 +145,7 @@ public class AppLibrarySearchAdapter extends RecyclerView.Adapter<RecyclerView.V
             avh.mIcon.applyFromApplicationInfo(app);
             avh.mIcon.setText("");
             avh.mTitle.setText(app.title);
+            avh.mTitle.setTextColor(CaddyStyle.textColor(avh.itemView.getContext()));
 
             if (avh.mSubtitle != null) {
                 avh.mSubtitle.setVisibility(View.GONE);

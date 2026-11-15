@@ -11,7 +11,7 @@ import android.view.View;
 
 import androidx.annotation.Nullable;
 
-import com.android.launcher3.util.Themes;
+import com.android.launcher3.allapps.CaddyStyle;
 
 public class AppLibraryAlphabetIndexer extends View {
 
@@ -47,8 +47,12 @@ public class AppLibraryAlphabetIndexer extends View {
         float textSize = TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_SP, 10f, getResources().getDisplayMetrics());
         mPaint.setTextSize(textSize);
-        int textColor = Themes.getAttrColor(getContext(), android.R.attr.textColorSecondary);
-        mPaint.setColor(textColor);
+        refreshAppearance();
+    }
+
+    public void refreshAppearance() {
+        mPaint.setColor(CaddyStyle.textColor(getContext()));
+        invalidate();
     }
 
     public void setOnSectionSelectedListener(OnSectionSelectedListener listener) {

@@ -12,6 +12,9 @@ import androidx.annotation.Nullable;
 
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.Launcher;
+import com.android.launcher3.LauncherPrefs;
+import com.android.launcher3.Utilities;
+import com.android.launcher3.allapps.CaddyStyle;
 import com.android.launcher3.R;
 import com.android.launcher3.applibrary.model.AppCategoryGroup;
 import com.android.launcher3.icons.FastBitmapDrawable;
@@ -70,12 +73,16 @@ public class AppCategoryCardView extends LinearLayout {
         mMiniIcon2 = findViewById(R.id.mini_icon_2);
         mMiniIcon3 = findViewById(R.id.mini_icon_3);
 
+        setBackground(CaddyStyle.background(getContext(), false));
+        mTitleView.setTextColor(CaddyStyle.textColor(getContext()));
+
         OnClickListener expandClick = v -> {
             if (mExpandListener != null && mGroup != null) {
                 mExpandListener.onExpandCategory(mGroup, this);
             }
         };
 
+        setOnClickListener(expandClick);
         if (mTitleView != null) {
             mTitleView.setOnClickListener(expandClick);
         }
@@ -89,32 +96,40 @@ public class AppCategoryCardView extends LinearLayout {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-        if (mCardContent != null) {
-            int cardWidth = mCardContent.getMeasuredWidth();
-            int cardHeight = Math.round(cardWidth * 1.2f);
-
-            int cardWidthSpec = MeasureSpec.makeMeasureSpec(
-                    cardWidth, MeasureSpec.EXACTLY);
-            int cardHeightSpec = MeasureSpec.makeMeasureSpec(
-                    cardHeight, MeasureSpec.EXACTLY);
-
-            mCardContent.measure(cardWidthSpec, cardHeightSpec);
-
-            int totalHeight = mCardContent.getMeasuredHeight()
-                    + getPaddingTop() + getPaddingBottom();
-
-            if (mTitleView != null && mTitleView.getVisibility() != GONE) {
-                totalHeight += mTitleView.getMeasuredHeight();
-
-                MarginLayoutParams lp = (MarginLayoutParams) mTitleView.getLayoutParams();
-                if (lp != null) {
-                    totalHeight += lp.topMargin + lp.bottomMargin;
-                }
-            }
-
-            setMeasuredDimension(getMeasuredWidth(), totalHeight);
+        int width = MeasureSpec.getSize(widthMeasureSpec) - getPaddingLeft() - getPaddingRight();
+        int gridHeight = Math.max(Utilities.dpToPx(112, getContext()),
+                Math.min(Utilities.dpToPx(180, getContext()), width));
+        if (LauncherPrefs.APP_LIBRARY_SHOW_LABELS.get(getContext())) {
+            gridHeight += 2 * ((int) Math.ceil(mSlot0.getPaint().getFontSpacing())
+                    + Utilities.dpToPx(4, getContext()));
         }
+        mCardContent.getLayoutParams().height = gridHeight;
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+    }
+
+    /** The visible icon corresponding to an expanded-grid item, including mini previews. */
+    public View getPreviewIcon(int index) {
+        if (index == 0) return mSlot0;
+        if (index == 1) return mSlot1;
+        if (index == 2) return mSlot2;
+        if (mGroup != null && mGroup.getApps().size() <= 4) {
+            return index == 3 ? mSlot3Single : null;
+        }
+        switch (index) {
+            case 3: return mMiniIcon0;
+            case 4: return mMiniIcon1;
+            case 5: return mMiniIcon2;
+            case 6: return mMiniIcon3;
+            default: return null;
+        }
+    }
+
+    public View getPreviewContent() {
+        return mCardContent;
+    }
+
+    public View getOverflowPreview() {
+        return mSlot3MiniCluster.getVisibility() == VISIBLE ? mSlot3MiniCluster : mCardContent;
     }
 
     public void setOnCategoryExpandListener(OnCategoryExpandListener listener) {
@@ -129,8 +144,12 @@ public class AppCategoryCardView extends LinearLayout {
 
         if (mTitleView != null) {
             mTitleView.setText(group.getTitleRes());
+            mTitleView.setContentDescription(getContext().getString(R.string.app_library_open_category,
+                    getContext().getString(group.getTitleRes()), group.getApps().size()));
         }
 
+        mSlot3MiniCluster.setContentDescription(mTitleView.getContentDescription());
+        requestLayout();
         List<AppInfo> apps = group.getApps();
         int count = apps.size();
 
@@ -165,6 +184,7 @@ public class AppCategoryCardView extends LinearLayout {
             view.setVisibility(View.VISIBLE);
             view.reset();
             view.applyFromApplicationInfo(app);
+            view.setTextColor(CaddyStyle.textColor(getContext()));
             view.setOnClickListener(activityContext.getItemOnClickListener());
             view.setOnLongClickListener(v -> {
                 if (activityContext instanceof Launcher) {

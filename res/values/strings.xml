@@ -602,7 +602,11 @@
     <string name="app_library_search_cancel">Cancel</string>
     <string name="app_library_search_clear">Clear search</string>
     <string name="pref_app_library_title">App Library</string>
-    <string name="pref_app_library_summary">Show an iOS-style categorized application library</string>
+    <string name="pref_app_library_summary">Browse apps by category from your home screen</string>
+    <string name="pref_app_library_show_labels_title">Show app labels</string>
+    <string name="pref_app_library_show_labels_summary">Show names below icons in App Library cards and expanded categories</string>
+    <string name="app_library_recent_apps">Recent and suggested apps</string>
+    <string name="app_library_open_category">Open %1$s, %2$d apps</string>
     <string name="pref_app_library_single_page_title">Single Home Page Mode</string>
     <string name="pref_app_library_single_page_summary">Keep only one home screen and access App Library with one swipe</string>
 

@@ -1,59 +1,86 @@
 package com.android.launcher3.applibrary.view;
 
-import static com.android.app.animation.Interpolators.EMPHASIZED;
+import static com.android.launcher3.applibrary.AppLibraryCategoryAnimation.START_SCALE;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.content.Context;
+import android.content.res.ColorStateList;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Rect;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.view.animation.PathInterpolator;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.graphics.ColorUtils;
+import androidx.core.view.OneShotPreDrawListener;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.android.launcher3.BubbleTextView;
-import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Insettable;
 import com.android.launcher3.Launcher;
+import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
+import com.android.launcher3.Utilities;
+import com.android.launcher3.allapps.CaddyStyle;
+import com.android.launcher3.applibrary.AppLibraryCategoryAnimation;
 import com.android.launcher3.applibrary.model.AppCategoryGroup;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.views.ActivityContext;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
+/** App Library's own category overlay, with preview-to-grid icon morphs and reversible motion. */
 public class AppCategoryExpandedSheet extends FrameLayout implements Insettable {
+    private static final PathInterpolator OPEN = new PathInterpolator(.25f, 0f, .15f, 1f);
+    private static final PathInterpolator CLOSE = new PathInterpolator(.20f, 0f, .10f, 1f);
 
     public interface OnExpandedSheetDismissListener {
         void onDismissStarted(long duration);
+
         void onDismissFinished();
+
+        void onExpansionProgress(float progress);
     }
 
     private View mCardView;
     private ImageButton mBackButton;
     private TextView mTitleView;
+    private TextView mCountView;
+    private TextView mEmptyView;
+    private EditText mSearch;
     private RecyclerView mGridView;
     private ExpandedGridAdapter mAdapter;
     private final ActivityContext mActivityContext;
     private OnExpandedSheetDismissListener mDismissListener;
     private final Rect mInsets = new Rect();
-
-    private Rect mSourceBounds;
-    private float mStartTranslationX = 0f;
-    private float mStartTranslationY = 0f;
-    private float mStartScaleX = 0.85f;
-    private float mStartScaleY = 0.85f;
-    private boolean mIsAnimating = false;
+    private final List<IconMotion> mIconMotions = new ArrayList<>();
+    private AppCategoryCardView mSource;
+    private ValueAnimator mAnimator;
+    private OneShotPreDrawListener mPendingOpen;
+    private float mProgress;
+    private boolean mClosing;
 
     public AppCategoryExpandedSheet(Context context) {
         this(context, null);
@@ -63,9 +90,11 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         this(context, attrs, 0);
     }
 
-    public AppCategoryExpandedSheet(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
+    public AppCategoryExpandedSheet(
+            Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         mActivityContext = ActivityContext.lookupContext(context);
+        setWillNotDraw(false);
     }
 
     @Override
@@ -74,24 +103,82 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         mCardView = findViewById(R.id.expanded_sheet_card);
         mBackButton = findViewById(R.id.expanded_sheet_back_button);
         mTitleView = findViewById(R.id.expanded_sheet_title);
+        mCountView = findViewById(R.id.expanded_sheet_count);
+        mEmptyView = findViewById(R.id.expanded_sheet_empty);
+        mSearch = findViewById(R.id.expanded_sheet_search);
         mGridView = findViewById(R.id.expanded_sheet_grid);
-
-        if (mBackButton != null) {
-            mBackButton.setOnClickListener(v -> hide(true));
-        }
-
+        mBackButton.setOnClickListener(v -> hide(true));
         setOnClickListener(v -> hide(true));
-        if (mCardView != null) {
-            mCardView.setOnClickListener(v -> {});
-        }
+        mCardView.setOnClickListener(v -> {});
+        mCardView.setFocusableInTouchMode(true);
+        mCardView.setBackground(CaddyStyle.background(getContext(), true));
+        mTitleView.setTextColor(CaddyStyle.textColor(getContext()));
+        mGridView.setLayoutManager(new GridLayoutManager(getContext(), 4));
+        mAdapter = new ExpandedGridAdapter();
+        mGridView.setAdapter(mAdapter);
+        mSearch.setBackground(CaddyStyle.background(getContext(), false));
+        mSearch.setTextColor(CaddyStyle.textColor(getContext()));
+        mSearch.setHintTextColor(
+                ColorUtils.setAlphaComponent(CaddyStyle.textColor(getContext()), 150));
+        mSearch.addTextChangedListener(
+                new TextWatcher() {
+                    @Override
+                    public void beforeTextChanged(
+                            CharSequence text, int start, int count, int after) {}
 
-        if (mGridView != null) {
-            int spanCount = calculateAdaptiveSpanCount();
-            mGridView.setLayoutManager(new GridLayoutManager(getContext(), spanCount));
-            mAdapter = new ExpandedGridAdapter(mActivityContext);
-            mGridView.setAdapter(mAdapter);
-            mGridView.setNestedScrollingEnabled(true);
-        }
+                    @Override
+                    public void onTextChanged(CharSequence text, int start, int before, int count) {
+                        mAdapter.filter(text.toString());
+                        mGridView.scrollToPosition(0);
+                        mEmptyView.setVisibility(mAdapter.getItemCount() == 0 ? VISIBLE : GONE);
+                        requestLayout();
+                    }
+
+                    @Override
+                    public void afterTextChanged(Editable text) {}
+                });
+        mSearch.setOnEditorActionListener(
+                (view, action, event) -> {
+                    if (action != EditorInfo.IME_ACTION_DONE) return false;
+                    hideKeyboard();
+                    mCardView.requestFocus();
+                    return true;
+                });
+        styleHeading();
+    }
+
+    private void styleHeading() {
+        int text = CaddyStyle.textColor(getContext());
+        mTitleView.setTextColor(text);
+        mSearch.setBackground(CaddyStyle.background(getContext(), false));
+        mSearch.setTextColor(text);
+        mSearch.setHintTextColor(ColorUtils.setAlphaComponent(text, 150));
+        mCountView.setTextColor(ColorUtils.setAlphaComponent(text, 140));
+        mEmptyView.setTextColor(ColorUtils.setAlphaComponent(text, 160));
+        mBackButton.setImageTintList(ColorStateList.valueOf(text));
+        GradientDrawable circle = new GradientDrawable();
+        circle.setShape(GradientDrawable.OVAL);
+        circle.setColor(ColorUtils.setAlphaComponent(text, 26));
+        GradientDrawable mask = new GradientDrawable();
+        mask.setShape(GradientDrawable.OVAL);
+        mask.setColor(Color.WHITE);
+        mBackButton.setBackground(
+                new RippleDrawable(
+                        ColorStateList.valueOf(ColorUtils.setAlphaComponent(text, 50)),
+                        circle,
+                        mask));
+    }
+
+    private void hideKeyboard() {
+        InputMethodManager ime = getContext().getSystemService(InputMethodManager.class);
+        if (ime != null) ime.hideSoftInputFromWindow(getWindowToken(), 0);
+        mSearch.clearFocus();
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        if (mClosing || isAnimating()) return true;
+        return super.dispatchTouchEvent(event);
     }
 
     @Override
@@ -103,261 +190,409 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
     @Override
     public void setInsets(Rect insets) {
         mInsets.set(insets);
+        requestLayout();
     }
 
-    private int calculateCellHeight() {
-        if (mActivityContext instanceof Launcher) {
-            DeviceProfile dp = ((Launcher) mActivityContext).getDeviceProfile();
-            if (dp != null && dp.getAllAppsProfile() != null && dp.getAllAppsProfile().getCellHeightPx() > 0) {
-                return dp.getAllAppsProfile().getCellHeightPx();
-            }
-        }
-        float density = getResources().getDisplayMetrics().density;
-        return (int) (104 * density);
+    private int dp(float value) {
+        return CaddyStyle.dp(getContext(), value);
+    }
+
+    private int cellHeight() {
+        int icon = mActivityContext.getDeviceProfile().getAllAppsProfile().getIconSizePx();
+        int text =
+                LauncherPrefs.APP_LIBRARY_SHOW_LABELS.get(getContext())
+                        ? (int) Math.ceil(getResources().getDisplayMetrics().scaledDensity * 18)
+                                + dp(4)
+                        : 0;
+        return Math.max(dp(88), icon + dp(16)) + text;
     }
 
     @Override
-    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        int widthSize = MeasureSpec.getSize(widthMeasureSpec);
-        int heightSize = MeasureSpec.getSize(heightMeasureSpec);
-
-        float density = getResources().getDisplayMetrics().density;
-        int maxCardWidth = Math.min(widthSize - (int) (32 * density), (int) (560 * density));
-        int maxSafeCardHeight = heightSize - (int) (48 * density);
-
-        int spanCount = calculateAdaptiveSpanCount();
-        int itemCount = mAdapter != null ? mAdapter.getItemCount() : 0;
-        int rowCount = Math.max(1, (itemCount + spanCount - 1) / spanCount);
-        int cellHeight = calculateCellHeight();
-        int headerAndPadding = (int) (88 * density);
-        int desiredCardHeight = headerAndPadding + (rowCount * cellHeight);
-        int finalCardHeight = Math.min(desiredCardHeight, maxSafeCardHeight);
-
-        if (mCardView != null) {
-            int cardWidthSpec = MeasureSpec.makeMeasureSpec(Math.max(0, maxCardWidth), MeasureSpec.EXACTLY);
-            int cardHeightSpec = MeasureSpec.makeMeasureSpec(Math.max(0, finalCardHeight), MeasureSpec.EXACTLY);
-            mCardView.measure(cardWidthSpec, cardHeightSpec);
-        }
-
-        setMeasuredDimension(widthSize, heightSize);
+    protected void onMeasure(int widthSpec, int heightSpec) {
+        int width = MeasureSpec.getSize(widthSpec);
+        int height = MeasureSpec.getSize(heightSpec);
+        WindowInsets wi = getRootWindowInsets();
+        int keyboard = wi == null ? 0 : wi.getInsets(WindowInsets.Type.ime()).bottom;
+        int availableWidth = Math.max(0, width - mInsets.left - mInsets.right - dp(40));
+        int availableHeight =
+                Math.max(0, height - mInsets.top - Math.max(mInsets.bottom, keyboard) - dp(48));
+        int cardWidth = Math.min(dp(380), availableWidth);
+        int count = mAdapter == null ? 0 : mAdapter.getItemCount();
+        int spans =
+                Math.max(
+                        1,
+                        Math.min(Math.min(4, Math.max(1, count)), (cardWidth - dp(40)) / dp(80)));
+        GridLayoutManager layout = (GridLayoutManager) mGridView.getLayoutManager();
+        if (layout.getSpanCount() != spans) layout.setSpanCount(spans);
+        int rows = (count + spans - 1) / spans;
+        int headerHeight =
+                dp(94)
+                        + (mSearch.getVisibility() == VISIBLE ? dp(56) : 0)
+                        + (mEmptyView.getVisibility() == VISIBLE ? dp(60) : 0);
+        int cardHeight =
+                Math.min(availableHeight, headerHeight + Math.min(dp(420), rows * cellHeight()));
+        mCardView.measure(
+                MeasureSpec.makeMeasureSpec(cardWidth, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(cardHeight, MeasureSpec.EXACTLY));
+        setMeasuredDimension(width, height);
     }
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-        int width = right - left;
-        int height = bottom - top;
+        WindowInsets wi = getRootWindowInsets();
+        int keyboard = wi == null ? 0 : wi.getInsets(WindowInsets.Type.ime()).bottom;
+        int safeBottom = bottom - top - Math.max(mInsets.bottom, keyboard);
+        int x =
+                mInsets.left
+                        + (right
+                                        - left
+                                        - mInsets.left
+                                        - mInsets.right
+                                        - mCardView.getMeasuredWidth())
+                                / 2;
+        int y = mInsets.top + (safeBottom - mInsets.top - mCardView.getMeasuredHeight()) / 2;
+        mCardView.layout(x, y, x + mCardView.getMeasuredWidth(), y + mCardView.getMeasuredHeight());
+    }
 
-        if (mCardView != null && mCardView.getVisibility() != View.GONE) {
-            int cardWidth = mCardView.getMeasuredWidth();
-            int cardHeight = mCardView.getMeasuredHeight();
-            int cardLeft = (width - cardWidth) / 2;
-            int cardTop = (height - cardHeight) / 2;
-            mCardView.layout(cardLeft, cardTop, cardLeft + cardWidth, cardTop + cardHeight);
+    public void show(@NonNull AppCategoryGroup group, @Nullable AppCategoryCardView source) {
+        hide(false);
+        mClosing = false;
+        mSource = source;
+        mTitleView.setText(group.getTitleRes());
+        mTitleView.setTextColor(CaddyStyle.textColor(getContext()));
+        mCardView.setBackground(CaddyStyle.background(getContext(), true));
+        mAdapter.setApps(group.getApps());
+        mSearch.setText("");
+        mSearch.setVisibility(group.getAppCount() > 12 ? VISIBLE : GONE);
+        mEmptyView.setVisibility(GONE);
+        mCountView.setText(
+                getResources()
+                        .getQuantityString(
+                                R.plurals.caddy_app_count,
+                                group.getAppCount(),
+                                group.getAppCount()));
+        styleHeading();
+        mGridView.scrollToPosition(0);
+        setVisibility(VISIBLE);
+        setAlpha(1f);
+        mCardView.setAlpha(0f);
+        mCardView.setScaleX(1f);
+        mCardView.setScaleY(1f);
+        requestLayout();
+        mPendingOpen =
+                OneShotPreDrawListener.add(
+                        this,
+                        () -> {
+                            mPendingOpen = null;
+                            if (!isOpen() || mClosing) return;
+                            prepareIconMotions();
+                            if (mSource != null)
+                                mSource.getPreviewContent().setVisibility(INVISIBLE);
+                            setContentClipping(false);
+                            applyProgress(0f);
+                            animateProgress(1f, 300);
+                        });
+    }
+
+    private void prepareIconMotions() {
+        mIconMotions.clear();
+        int[] panelPos = new int[2];
+        mCardView.getLocationOnScreen(panelPos);
+        float centerX = panelPos[0] + mCardView.getWidth() / 2f;
+        float centerY = panelPos[1] + mCardView.getHeight() / 2f;
+        for (int i = 0; i < mGridView.getChildCount(); i++) {
+            View child = mGridView.getChildAt(i);
+            if (!(child instanceof BubbleTextView)) continue;
+            int position = mGridView.getChildAdapterPosition(child);
+            if (position == RecyclerView.NO_POSITION) continue;
+            BubbleTextView icon = (BubbleTextView) child;
+            Rect target = iconRect(icon);
+            if (target.isEmpty()) continue;
+            View preview =
+                    mSource == null
+                            ? null
+                            : mSource.getPreviewIcon(mAdapter.getOriginalIndex(position));
+            Rect origin = preview != null ? iconRect(preview) : new Rect();
+            boolean fromPreview = !origin.isEmpty();
+            if (!fromPreview && mSource != null) {
+                origin = iconRect(mSource.getOverflowPreview());
+            }
+            if (origin.isEmpty()) origin.set(target);
+            Rect localIcon = new Rect();
+            icon.getIconBounds(localIcon);
+            icon.setPivotX(localIcon.exactCenterX());
+            icon.setPivotY(localIcon.exactCenterY());
+            IconMotion motion = new IconMotion();
+            motion.icon = icon;
+            motion.dx =
+                    AppLibraryCategoryAnimation.previewTranslation(
+                            origin.exactCenterX(), target.exactCenterX(), centerX);
+            motion.dy =
+                    AppLibraryCategoryAnimation.previewTranslation(
+                            origin.exactCenterY(), target.exactCenterY(), centerY);
+            motion.scale =
+                    fromPreview
+                            ? AppLibraryCategoryAnimation.previewScale(
+                                    origin.width(), target.width())
+                            : .4f;
+            motion.preview = fromPreview;
+            motion.stagger = Math.min(.18f, i * .035f);
+            mIconMotions.add(motion);
         }
     }
 
-    public void setOnExpandedSheetDismissListener(OnExpandedSheetDismissListener listener) {
-        mDismissListener = listener;
+    private Rect iconRect(View view) {
+        Rect rect = new Rect();
+        if (!view.isAttachedToWindow() || view.getVisibility() != VISIBLE) return rect;
+        int[] pos = new int[2];
+        view.getLocationOnScreen(pos);
+        if (view instanceof BubbleTextView) {
+            ((BubbleTextView) view).getIconBounds(rect);
+        } else {
+            rect.set(0, 0, view.getWidth(), view.getHeight());
+        }
+        rect.offset(pos[0], pos[1]);
+        return rect;
     }
 
-    private int calculateAdaptiveSpanCount() {
-        if (mActivityContext instanceof Launcher) {
-            DeviceProfile dp = ((Launcher) mActivityContext).getDeviceProfile();
-            if (dp.getDeviceProperties().isTablet()) {
-                return dp.getDeviceProperties().isLandscape() ? 6 : 5;
-            }
-            if (dp.getDeviceProperties().isLandscape()) {
-                return 6;
-            }
+    private void applyProgress(float progress) {
+        mProgress = progress;
+        mCardView.setAlpha(1f);
+        float scale = START_SCALE + (1f - START_SCALE) * progress;
+        mCardView.setScaleX(scale);
+        mCardView.setScaleY(scale);
+        mCardView.getBackground().setAlpha(Math.round(255 * progress));
+        float headerAlpha = Utilities.boundToRange((progress - .2f) / .8f, 0f, 1f);
+        mTitleView.setAlpha(headerAlpha);
+        mCountView.setAlpha(headerAlpha);
+        mSearch.setAlpha(headerAlpha);
+        mBackButton.setAlpha(headerAlpha);
+        for (IconMotion motion : mIconMotions) {
+            float p =
+                    Utilities.boundToRange(
+                            (progress - motion.stagger) / (1f - motion.stagger), 0f, 1f);
+            motion.icon.setTranslationX(motion.dx * (1f - p));
+            motion.icon.setTranslationY(motion.dy * (1f - p));
+            motion.icon.setScaleX(motion.scale + (1f - motion.scale) * p);
+            motion.icon.setScaleY(motion.scale + (1f - motion.scale) * p);
+            motion.icon.setAlpha(
+                    motion.preview ? 1f : Utilities.boundToRange((p - .35f) / .65f, 0f, 1f));
+            BubbleTextView.TEXT_ALPHA_PROPERTY.set(
+                    motion.icon, Utilities.boundToRange((p - .35f) / .65f, 0f, 1f));
         }
-        return 4;
+        if (mDismissListener != null) mDismissListener.onExpansionProgress(progress);
+        invalidate();
     }
 
-    public void show(@NonNull AppCategoryGroup group, @Nullable Rect sourceBounds) {
-        mSourceBounds = sourceBounds;
-        if (mTitleView != null) {
-            mTitleView.setText(group.getTitleRes());
+    private void animateProgress(float target, long duration) {
+        if (mAnimator != null) {
+            mAnimator.cancel();
+            mAnimator = null;
         }
-        if (mAdapter != null) {
-            mAdapter.setApps(group.getApps());
+        if (!ValueAnimator.areAnimatorsEnabled()) {
+            applyProgress(target);
+            if (target == 0f) finishClose();
+            else finishOpen();
+            return;
         }
+        ValueAnimator animator = ValueAnimator.ofFloat(mProgress, target);
+        animator.setDuration(duration);
+        animator.setInterpolator(target == 1f ? OPEN : CLOSE);
+        animator.addUpdateListener(a -> applyProgress((Float) a.getAnimatedValue()));
+        animator.addListener(
+                new AnimatorListenerAdapter() {
+                    private boolean mCancelled;
 
-        if (mGridView != null) {
-            int spanCount = calculateAdaptiveSpanCount();
-            GridLayoutManager layoutManager = (GridLayoutManager) mGridView.getLayoutManager();
-            if (layoutManager != null && layoutManager.getSpanCount() != spanCount) {
-                layoutManager.setSpanCount(spanCount);
-            }
-            mGridView.scrollToPosition(0);
-        }
+                    @Override
+                    public void onAnimationCancel(Animator animation) {
+                        mCancelled = true;
+                    }
 
-        setVisibility(View.VISIBLE);
-        setAlpha(0f);
-        mIsAnimating = true;
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        if (mCancelled || mAnimator != animation) return;
+                        mAnimator = null;
+                        if (target == 0f) finishClose();
+                        else finishOpen();
+                    }
+                });
+        mAnimator = animator;
+        animator.start();
+    }
 
-        post(() -> {
-            if (mCardView != null) {
-                int cardWidth = mCardView.getWidth();
-                int cardHeight = mCardView.getHeight();
+    private void finishOpen() {
+        for (IconMotion motion : mIconMotions) resetIcon(motion.icon);
+        setContentClipping(true);
+        mCardView.requestFocus();
+        announceForAccessibility(mTitleView.getText());
+    }
 
-                if (cardWidth > 0 && cardHeight > 0 && mSourceBounds != null && mSourceBounds.width() > 0 && mSourceBounds.height() > 0) {
-                    float targetCenterX = mCardView.getLeft() + cardWidth / 2f;
-                    float targetCenterY = mCardView.getTop() + cardHeight / 2f;
+    private void resetIcon(BubbleTextView icon) {
+        icon.setTranslationX(0f);
+        icon.setTranslationY(0f);
+        icon.setScaleX(1f);
+        icon.setScaleY(1f);
+        icon.setAlpha(1f);
+        BubbleTextView.TEXT_ALPHA_PROPERTY.set(icon, 1f);
+    }
 
-                    float sourceCenterX = mSourceBounds.exactCenterX();
-                    float sourceCenterY = mSourceBounds.exactCenterY();
-
-                    mStartTranslationX = sourceCenterX - targetCenterX;
-                    mStartTranslationY = sourceCenterY - targetCenterY;
-                    mStartScaleX = Math.max(0.15f, (float) mSourceBounds.width() / cardWidth);
-                    mStartScaleY = Math.max(0.15f, (float) mSourceBounds.height() / cardHeight);
-                } else {
-                    mStartTranslationX = 0f;
-                    mStartTranslationY = 0f;
-                    mStartScaleX = 0.85f;
-                    mStartScaleY = 0.85f;
-                }
-
-                mCardView.setPivotX(cardWidth / 2f);
-                mCardView.setPivotY(cardHeight / 2f);
-                mCardView.setTranslationX(mStartTranslationX);
-                mCardView.setTranslationY(mStartTranslationY);
-                mCardView.setScaleX(mStartScaleX);
-                mCardView.setScaleY(mStartScaleY);
-                mCardView.setAlpha(0.5f);
-
-                mCardView.animate()
-                        .translationX(0f)
-                        .translationY(0f)
-                        .scaleX(1.0f)
-                        .scaleY(1.0f)
-                        .alpha(1.0f)
-                        .setDuration(280)
-                        .setInterpolator(EMPHASIZED)
-                        .setListener(new AnimatorListenerAdapter() {
-                            @Override
-                            public void onAnimationEnd(Animator animation) {
-                                mIsAnimating = false;
-                            }
-                        })
-                        .start();
-            }
-
-            animate()
-                    .alpha(1.0f)
-                    .setDuration(280)
-                    .setInterpolator(EMPHASIZED)
-                    .setListener(null)
-                    .start();
-        });
+    private void setContentClipping(boolean enabled) {
+        ((ViewGroup) mCardView).setClipChildren(enabled);
+        mCardView.setClipToOutline(enabled);
+        mGridView.setClipChildren(enabled);
+        mGridView.setClipToPadding(enabled);
     }
 
     public void hide(boolean animate) {
-        if (getVisibility() != View.VISIBLE) {
-            return;
+        if (mPendingOpen != null) {
+            mPendingOpen.removeListener();
+            mPendingOpen = null;
         }
-
-        if (!animate) {
-            setVisibility(View.GONE);
-            if (mDismissListener != null) {
-                mDismissListener.onDismissFinished();
+        if (!isOpen()) return;
+        hideKeyboard();
+        if (!animate || mProgress == 0f) {
+            if (mAnimator != null) {
+                mAnimator.cancel();
+                mAnimator = null;
             }
+            finishClose();
             return;
         }
+        if (mClosing) return;
+        mClosing = true;
+        mGridView.stopScroll();
+        if (mProgress == 1f) {
+            // The user may have scrolled: recalculate the morph for the currently visible icons.
+            if (mSource != null) mSource.getPreviewContent().setVisibility(VISIBLE);
+            prepareIconMotions();
+            if (mSource != null) mSource.getPreviewContent().setVisibility(INVISIBLE);
+        }
+        setContentClipping(false);
+        long duration = Math.max(100, Math.round(250 * mProgress));
+        if (mDismissListener != null) mDismissListener.onDismissStarted(duration);
+        animateProgress(0f, duration);
+    }
 
-        long duration = 240;
+    private void finishClose() {
+        mProgress = 0f;
+        setVisibility(GONE);
+        for (IconMotion motion : mIconMotions) resetIcon(motion.icon);
+        mIconMotions.clear();
+        if (mSource != null) {
+            mSource.getPreviewContent().setVisibility(VISIBLE);
+            mSource = null;
+        }
+        mClosing = false;
         if (mDismissListener != null) {
-            mDismissListener.onDismissStarted(duration);
+            mDismissListener.onExpansionProgress(0f);
+            mDismissListener.onDismissFinished();
         }
+    }
 
-        mIsAnimating = true;
-        if (mCardView != null) {
-            mCardView.animate()
-                    .translationX(mStartTranslationX)
-                    .translationY(mStartTranslationY)
-                    .scaleX(mStartScaleX)
-                    .scaleY(mStartScaleY)
-                    .alpha(0f)
-                    .setDuration(duration)
-                    .setInterpolator(EMPHASIZED)
-                    .start();
-        }
+    @Override
+    protected void onDraw(Canvas canvas) {
+        canvas.drawColor(
+                Color.argb(
+                        Math.round(mProgress * (Utilities.isDarkTheme(getContext()) ? 120 : 75)),
+                        0,
+                        0,
+                        0));
+        super.onDraw(canvas);
+    }
 
-        animate()
-                .alpha(0f)
-                .setDuration(duration)
-                .setInterpolator(EMPHASIZED)
-                .setListener(new AnimatorListenerAdapter() {
-                    @Override
-                    public void onAnimationEnd(Animator animation) {
-                        setVisibility(View.GONE);
-                        mIsAnimating = false;
-                        if (mDismissListener != null) {
-                            mDismissListener.onDismissFinished();
-                        }
-                    }
-                })
-                .start();
+    @Override
+    protected void onDetachedFromWindow() {
+        hide(false);
+        super.onDetachedFromWindow();
+    }
+
+    public void setOnExpandedSheetDismissListener(
+            OnExpandedSheetDismissListener listener) {
+        mDismissListener = listener;
     }
 
     public boolean isOpen() {
-        return getVisibility() == View.VISIBLE;
+        return getVisibility() == VISIBLE;
     }
 
     public boolean isAnimating() {
-        return mIsAnimating;
+        return mAnimator != null || mPendingOpen != null;
+    }
+
+    private static class IconMotion {
+        BubbleTextView icon;
+        float dx, dy, scale, stagger;
+        boolean preview;
     }
 
     private class ExpandedGridAdapter extends RecyclerView.Adapter<ExpandedGridAdapter.ViewHolder> {
-
-        private final ActivityContext mActivityContext;
         private final List<AppInfo> mApps = new ArrayList<>();
-
-        ExpandedGridAdapter(ActivityContext activityContext) {
-            mActivityContext = activityContext;
-        }
+        private final List<AppInfo> mAllApps = new ArrayList<>();
 
         void setApps(List<AppInfo> apps) {
+            mAllApps.clear();
+            mAllApps.addAll(apps);
+            filter("");
+        }
+
+        int getOriginalIndex(int position) {
+            return position >= 0 && position < mApps.size()
+                    ? mAllApps.indexOf(mApps.get(position))
+                    : -1;
+        }
+
+        void filter(String query) {
+            String normalized = query.trim().toLowerCase(Locale.getDefault());
             mApps.clear();
-            if (apps != null) {
-                mApps.addAll(apps);
+            for (AppInfo app : mAllApps) {
+                if (normalized.isEmpty()
+                        || (app.title != null
+                                && app.title
+                                        .toString()
+                                        .toLowerCase(Locale.getDefault())
+                                        .contains(normalized))) {
+                    mApps.add(app);
+                }
             }
             notifyDataSetChanged();
         }
 
         @NonNull
         @Override
-        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            LayoutInflater inflater = LayoutInflater.from(parent.getContext());
-            BubbleTextView icon = (BubbleTextView) inflater.inflate(
-                    R.layout.all_apps_icon, parent, false);
-            int cellHeight = calculateCellHeight();
-            RecyclerView.LayoutParams lp = new RecyclerView.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    cellHeight
-            );
-            icon.setLayoutParams(lp);
+        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int type) {
+            BubbleTextView icon =
+                    (BubbleTextView)
+                            LayoutInflater.from(parent.getContext())
+                                    .inflate(R.layout.app_library_icon, parent, false);
+            icon.setLayoutParams(
+                    new RecyclerView.LayoutParams(LayoutParams.MATCH_PARENT, cellHeight()));
             return new ViewHolder(icon);
         }
 
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-            AppInfo app = mApps.get(position);
-            holder.mIcon.reset();
-            holder.mIcon.applyFromApplicationInfo(app);
-            holder.mIcon.setOnClickListener(v -> {
-                hide(false);
-                mActivityContext.getItemOnClickListener().onClick(v);
-            });
-            holder.mIcon.setOnLongClickListener(v -> {
-                if (mActivityContext instanceof Launcher) {
-                    Launcher launcher = (Launcher) mActivityContext;
-                    if (launcher.getPopupControllerForAppIcons() != null) {
-                        return launcher.getPopupControllerForAppIcons().show(v) != null;
-                    }
-                }
-                return false;
-            });
+            BubbleTextView icon = (BubbleTextView) holder.itemView;
+            resetIcon(icon);
+            icon.reset();
+            icon.applyFromApplicationInfo(mApps.get(position));
+            icon.setTextColor(CaddyStyle.textColor(getContext()));
+            icon.getLayoutParams().height = cellHeight();
+            icon.setOnClickListener(
+                    v -> {
+                        // Keep the clicked icon attached and visible while launch bounds are
+                        // captured.
+                        mActivityContext.getItemOnClickListener().onClick(v);
+                        hide(false);
+                    });
+            icon.setOnLongClickListener(
+                    v ->
+                            mActivityContext instanceof Launcher
+                                    && ((Launcher) mActivityContext).getPopupControllerForAppIcons()
+                                            != null
+                                    && ((Launcher) mActivityContext)
+                                                    .getPopupControllerForAppIcons()
+                                                    .show(v)
+                                            != null);
         }
 
         @Override
@@ -366,13 +601,9 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         }
 
         class ViewHolder extends RecyclerView.ViewHolder {
-            final BubbleTextView mIcon;
-
             ViewHolder(BubbleTextView icon) {
                 super(icon);
-                mIcon = icon;
             }
         }
     }
 }
-

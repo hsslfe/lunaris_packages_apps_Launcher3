@@ -173,6 +173,15 @@ public class SettingsHomescreen extends ComposeSettingsActivity
             addSmartspacePreferences();
 
             PreferenceScreen screen = getPreferenceScreen();
+            updateAppLibraryVisibility();
+            Preference librarySwitch = screen.findPreference(
+                    LauncherPrefs.APP_LIBRARY_ENABLED.getSharedPrefKey());
+            if (librarySwitch != null) {
+                librarySwitch.setOnPreferenceChangeListener((preference, value) -> {
+                    setAppLibraryOptionsVisible(screen, (Boolean) value);
+                    return true;
+                });
+            }
 
             mShowGoogleAppPref = screen.findPreference(KEY_MINUS_ONE);
             mShowGoogleBarPref = screen.findPreference(LauncherPrefs.DOCK_SEARCH.getSharedPrefKey());
@@ -227,6 +236,23 @@ public class SettingsHomescreen extends ComposeSettingsActivity
                     .registerOnSharedPreferenceChangeListener(this);
         }
 
+        private void updateAppLibraryVisibility() {
+            setAppLibraryOptionsVisible(getPreferenceScreen(),
+                    LauncherPrefs.APP_LIBRARY_ENABLED.get(requireContext()));
+        }
+
+        static void setAppLibraryOptionsVisible(PreferenceScreen screen, boolean visible) {
+            String[] keys = {
+                    LauncherPrefs.APP_LIBRARY_SHOW_LABELS.getSharedPrefKey(),
+                    LauncherPrefs.APP_LIBRARY_SINGLE_PAGE.getSharedPrefKey(),
+                    LauncherPrefs.APP_LIBRARY_HIDE_APP_DRAWER.getSharedPrefKey()
+            };
+            for (String key : keys) {
+                Preference option = screen.findPreference(key);
+                if (option != null) option.setVisible(visible);
+            }
+        }
+
         private void updateIsGoogleAppEnabled() {
             if (mShowGoogleAppPref != null) {
                 mShowGoogleAppPref.setEnabled(Utilities.isGSAEnabled(getContext()));
@@ -239,6 +265,7 @@ public class SettingsHomescreen extends ComposeSettingsActivity
         @Override
         public void onResume() {
             super.onResume();
+            updateAppLibraryVisibility();
 
             updateIsGoogleAppEnabled();
             updateAutoAddIconsPreferenceState();
@@ -466,6 +493,9 @@ public class SettingsHomescreen extends ComposeSettingsActivity
 
         @Override
         public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+            if (LauncherPrefs.APP_LIBRARY_ENABLED.getSharedPrefKey().equals(key)) {
+                updateAppLibraryVisibility();
+            }
             if (key == null || key.startsWith("pref_smartspace")
                     || LauncherPrefs.SHOW_QUICKSPACE.getSharedPrefKey().equals(key)) {
                 updateQuickspaceClockColorPrefs();
