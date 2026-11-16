@@ -586,6 +586,11 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         }
 
         super.onActivityFlagsChanged(changeBits);
+        if (mUnlockAnimationController != null
+                && (changeBits & (ACTIVITY_STATE_RESUMED | ACTIVITY_STATE_WINDOW_FOCUSED
+                        | ACTIVITY_STATE_STARTED)) != 0) {
+            mUnlockAnimationController.onLauncherReady();
+        }
         if ((changeBits & (ACTIVITY_STATE_DEFERRED_RESUMED | ACTIVITY_STATE_STARTED
                 | ACTIVITY_STATE_USER_ACTIVE | ACTIVITY_STATE_TRANSITION_ACTIVE)) != 0) {
             onStateOrResumeChanging((getActivityFlags() & ACTIVITY_STATE_TRANSITION_ACTIVE) == 0);

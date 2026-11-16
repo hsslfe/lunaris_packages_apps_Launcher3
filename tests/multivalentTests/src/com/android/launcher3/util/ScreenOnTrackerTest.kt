@@ -25,6 +25,7 @@ import android.util.StringBuilderPrinter
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.launcher3.util.SimpleBroadcastReceiver.Companion.actionsFilter
+import com.android.launcher3.util.Executors.MAIN_EXECUTOR
 import com.google.common.truth.Truth.assertThat
 import org.junit.Before
 import org.junit.Rule
@@ -34,6 +35,7 @@ import org.mockito.Mock
 import org.mockito.junit.MockitoJUnit
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argThat
+import org.mockito.Mockito.inOrder
 import org.mockito.kotlin.isNull
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoMoreInteractions
@@ -77,7 +79,7 @@ class ScreenOnTrackerTest {
     fun add_listener_then_receive_screen_on_intent_notify_listener() {
         underTest.addListener(listener)
 
-        underTest.onReceive(Intent(ACTION_SCREEN_ON))
+        TestUtil.runOnExecutorSync(MAIN_EXECUTOR) { underTest.onReceive(Intent(ACTION_SCREEN_ON)) }
 
         verify(listener).onScreenOnChanged(true)
         assertThat(underTest.isScreenOn).isTrue()
@@ -87,7 +89,7 @@ class ScreenOnTrackerTest {
     fun add_listener_then_receive_screen_off_intent_notify_listener() {
         underTest.addListener(listener)
 
-        underTest.onReceive(Intent(ACTION_SCREEN_OFF))
+        TestUtil.runOnExecutorSync(MAIN_EXECUTOR) { underTest.onReceive(Intent(ACTION_SCREEN_OFF)) }
 
         verify(listener).onScreenOnChanged(false)
         assertThat(underTest.isScreenOn).isFalse()
@@ -97,7 +99,7 @@ class ScreenOnTrackerTest {
     fun add_listener_then_receive_user_present_intent_notify_listener() {
         underTest.addListener(listener)
 
-        underTest.onReceive(Intent(ACTION_USER_PRESENT))
+        TestUtil.runOnExecutorSync(MAIN_EXECUTOR) { underTest.onReceive(Intent(ACTION_USER_PRESENT)) }
 
         verify(listener).onUserPresent()
         assertThat(underTest.isScreenOn).isTrue()
@@ -109,8 +111,22 @@ class ScreenOnTrackerTest {
 
         underTest.removeListener(listener)
 
-        underTest.onReceive(Intent(ACTION_USER_PRESENT))
+        TestUtil.runOnExecutorSync(MAIN_EXECUTOR) { underTest.onReceive(Intent(ACTION_USER_PRESENT)) }
         verifyNoMoreInteractions(listener)
+    }
+
+    @Test
+    fun rapid_screen_off_on_unlock_preserves_event_values_and_order() {
+        underTest.addListener(listener)
+        TestUtil.runOnExecutorSync(MAIN_EXECUTOR) {
+            underTest.onReceive(Intent(ACTION_SCREEN_OFF))
+            underTest.onReceive(Intent(ACTION_SCREEN_ON))
+            underTest.onReceive(Intent(ACTION_USER_PRESENT))
+        }
+        val order = inOrder(listener)
+        order.verify(listener).onScreenOnChanged(false)
+        order.verify(listener).onScreenOnChanged(true)
+        order.verify(listener).onUserPresent()
     }
 
     private fun IntentFilter.toFullString(): String =

@@ -20,7 +20,6 @@ import static android.content.Intent.ACTION_SCREEN_ON;
 import static android.content.Intent.ACTION_USER_PRESENT;
 
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
-import static com.android.launcher3.util.Executors.THREAD_POOL_EXECUTOR;
 import static com.android.launcher3.util.SimpleBroadcastReceiver.actionsFilter;
 
 import android.content.Context;
@@ -37,7 +36,6 @@ import com.android.launcher3.concurrent.annotations.Ui;
 import com.android.launcher3.util.LooperExecutor;
 
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executor;
 
 import javax.inject.Inject;
 
@@ -84,25 +82,20 @@ public class ScreenOnTracker {
         String action = intent.getAction();
         if (ACTION_SCREEN_ON.equals(action)) {
             mIsScreenOn = true;
-            THREAD_POOL_EXECUTOR.execute(() -> {
-                dispatchScreenOnChanged();
-            });
+            dispatchScreenOnChanged(true);
         } else if (ACTION_SCREEN_OFF.equals(action)) {
             mIsScreenOn = false;
-            THREAD_POOL_EXECUTOR.execute(() -> {
-                dispatchScreenOnChanged();
-            });
+            dispatchScreenOnChanged(false);
         } else if (ACTION_USER_PRESENT.equals(action)) {
-            THREAD_POOL_EXECUTOR.execute(() -> {
-                dispatchUserPresent();
-            });
+            dispatchUserPresent();
         }
     }
 
-    private void dispatchScreenOnChanged() {
+    // Deliver the captured event in order; a rapid wake must not overwrite a queued screen-off.
+    private void dispatchScreenOnChanged(boolean isScreenOn) {
         for (ScreenOnListener listener : mListeners) {
             MAIN_EXECUTOR.execute(() -> {
-                listener.onScreenOnChanged(mIsScreenOn);
+                listener.onScreenOnChanged(isScreenOn);
             });
         }
     }
