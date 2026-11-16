@@ -101,27 +101,34 @@
                 android:clipToPadding="false"
                 android:overScrollMode="ifContentScrolls" />
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/app_library_search_results_view"
+            <FrameLayout
+                android:id="@+id/app_library_search_panel"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:paddingStart="8dp"
-                android:paddingEnd="24dp"
-                android:paddingBottom="24dp"
-                android:clipToPadding="false"
-                android:background="@drawable/app_library_search_list_bg"
-                android:overScrollMode="ifContentScrolls"
-                android:visibility="gone" />
+                android:visibility="gone">
 
-            <com.android.launcher3.applibrary.view.AppLibraryAlphabetIndexer
-                android:id="@+id/app_library_alphabet_indexer"
-                android:layout_width="20dp"
-                android:layout_height="match_parent"
-                android:layout_gravity="end|center_vertical"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="24dp"
-                android:layout_marginEnd="4dp"
-                android:visibility="gone" />
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/app_library_search_results_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="24dp"
+                    android:paddingBottom="24dp"
+                    android:clipToPadding="false"
+                    android:background="@drawable/app_library_search_list_bg"
+                    android:overScrollMode="ifContentScrolls"
+                    android:visibility="gone" />
+
+                <com.android.launcher3.applibrary.view.AppLibraryAlphabetIndexer
+                    android:id="@+id/app_library_alphabet_indexer"
+                    android:layout_width="20dp"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="end|center_vertical"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="24dp"
+                    android:layout_marginEnd="4dp"
+                    android:visibility="gone" />
+            </FrameLayout>
 
         </FrameLayout>
 

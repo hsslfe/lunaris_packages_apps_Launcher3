@@ -154,6 +154,26 @@ public class AppLibraryScrollingTest {
     }
 
     @Test
+    public void pullToSearch_revealsThePanel_withoutMovingTheOverscrollList() {
+        AppLibraryContainerView library = createLibrary();
+        try {
+            library.openSearchFromPull();
+            View panel = library.findViewById(R.id.app_library_search_panel);
+            assertTrue(library.getSearchBar().isSearching());
+            assertEquals(View.VISIBLE, panel.getVisibility());
+            assertEquals(0f, panel.getAlpha(), 0f);
+            assertTrue(panel.getTranslationY() < 0f);
+            assertEquals(0f, library.getSearchResultsView().getTranslationY(), 0f);
+            library.reset();
+            assertEquals(View.GONE, panel.getVisibility());
+            assertEquals(1f, panel.getAlpha(), 0f);
+            assertEquals(0f, panel.getTranslationY(), 0f);
+        } finally {
+            library.reset();
+        }
+    }
+
+    @Test
     public void allLibraryLists_useLauncherSpringPhysics() {
         AppLibraryContainerView library = createLibrary();
         try {

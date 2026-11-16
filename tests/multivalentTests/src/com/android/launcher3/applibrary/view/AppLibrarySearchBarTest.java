@@ -1,5 +1,7 @@
 package com.android.launcher3.applibrary.view;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -74,6 +76,34 @@ public class AppLibrarySearchBarTest {
     public void nextAction_doesNotSubmit() {
         mInput.onEditorAction(EditorInfo.IME_ACTION_NEXT);
         verify(mListener, never()).onSearchSubmit();
+    }
+
+    @Test
+    public void pullSearch_canDeferKeyboardUntilItsRevealFinishes() {
+        Context context = InstrumentationRegistry.getTargetContext();
+        KeyboardCountingSearchBar bar = new KeyboardCountingSearchBar(context);
+        EditText input = new EditText(context);
+        input.setId(R.id.app_library_search_input);
+        bar.addView(input);
+        bar.onFinishInflate();
+        bar.setSearching(true, false);
+        assertTrue(bar.isSearching());
+        assertEquals(0, bar.keyboardRequests);
+        bar.showKeyboard();
+        assertEquals(1, bar.keyboardRequests);
+    }
+
+    private static class KeyboardCountingSearchBar extends AppLibrarySearchBar {
+        int keyboardRequests;
+
+        KeyboardCountingSearchBar(Context context) {
+            super(context);
+        }
+
+        @Override
+        public void showKeyboard() {
+            keyboardRequests++;
+        }
     }
 
     @Test

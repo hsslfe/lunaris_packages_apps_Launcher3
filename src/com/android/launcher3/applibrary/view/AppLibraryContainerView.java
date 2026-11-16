@@ -55,6 +55,8 @@ public class AppLibraryContainerView extends FrameLayout
     private AppLibrarySearchBar mSearchBar;
     private RecyclerView mGridView;
     private RecyclerView mSearchResultsView;
+    private View mSearchPanel;
+    private boolean mOpeningSearchFromPull;
     private AppLibraryAlphabetIndexer mAlphabetIndexer;
     private AppCategoryExpandedSheet mExpandedSheet;
 
@@ -95,6 +97,7 @@ public class AppLibraryContainerView extends FrameLayout
         mSearchBar = findViewById(R.id.app_library_search_bar);
         mGridView = findViewById(R.id.app_library_grid_view);
         mSearchResultsView = findViewById(R.id.app_library_search_results_view);
+        mSearchPanel = findViewById(R.id.app_library_search_panel);
         mAlphabetIndexer = findViewById(R.id.app_library_alphabet_indexer);
         mExpandedSheet = findViewById(R.id.app_library_expanded_sheet);
         mShowLabels = LauncherPrefs.APP_LIBRARY_SHOW_LABELS.get(getContext());
@@ -293,7 +296,7 @@ public class AppLibraryContainerView extends FrameLayout
             mTouchInProgress = false;
             boolean result = super.dispatchTouchEvent(ev);
             // Finish RecyclerView's gesture before opening the list and requesting the keyboard.
-            if (openSearch && mSearchBar != null) mSearchBar.setSearching(true);
+            if (openSearch) openSearchFromPull();
             bindPendingRecentApps();
             return result;
         }
@@ -303,6 +306,17 @@ public class AppLibraryContainerView extends FrameLayout
             bindPendingRecentApps();
         }
         return handled;
+    }
+
+    void openSearchFromPull() {
+        if (mSearchBar == null || mSearchBar.isSearching()) return;
+        mOpeningSearchFromPull = true;
+        try {
+            // Let the panel reveal finish before the IME resizes it.
+            mSearchBar.setSearching(true, false);
+        } finally {
+            mOpeningSearchFromPull = false;
+        }
     }
 
     public void setModel(AppLibraryModel model) {
@@ -398,6 +412,7 @@ public class AppLibraryContainerView extends FrameLayout
 
     @Override
     protected void onDetachedFromWindow() {
+        if (mSearchPanel != null) mSearchPanel.animate().setListener(null).cancel();
         ThemeManager.INSTANCE.get(getContext()).removeChangeListener(this);
         LauncherPrefs.get(getContext()).removeListener(this, LauncherPrefs.APP_LIBRARY_SHOW_LABELS,
                 LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION);
@@ -497,6 +512,7 @@ public class AppLibraryContainerView extends FrameLayout
 
     @Override
     public void onSearchStateChanged(boolean isSearching) {
+        if (mSearchPanel != null) mSearchPanel.animate().setListener(null).cancel();
         if (mExpandedSheet != null && mExpandedSheet.isOpen()) {
             mExpandedSheet.hide(false);
             if (mAppLibraryContent != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -532,8 +548,27 @@ public class AppLibraryContainerView extends FrameLayout
                     mSearchResultsView.setAlpha(0f);
                 }
                 mSearchResultsView.setVisibility(View.VISIBLE);
-                mSearchResultsView.animate().alpha(1f).setDuration(280)
-                        .setInterpolator(EMPHASIZED_DECELERATE).setListener(null).start();
+                mSearchPanel.setVisibility(View.VISIBLE);
+                if (mOpeningSearchFromPull) {
+                    // Move the panel, leaving the list's translation to its overscroll spring.
+                    mSearchResultsView.setAlpha(1f);
+                    mSearchPanel.setAlpha(0f);
+                    mSearchPanel.setTranslationY(-Utilities.dpToPx(24, getContext()));
+                    mSearchPanel.animate().alpha(1f).translationY(0f).setDuration(300)
+                            .setInterpolator(EMPHASIZED).setListener(new AnimatorListenerAdapter() {
+                                @Override
+                                public void onAnimationEnd(Animator animation) {
+                                    if (isShown() && mSearchBar.isSearching()) {
+                                        mSearchBar.showKeyboard();
+                                    }
+                                }
+                            }).start();
+                } else {
+                    mSearchPanel.setAlpha(1f);
+                    mSearchPanel.setTranslationY(0f);
+                    mSearchResultsView.animate().alpha(1f).setDuration(280)
+                            .setInterpolator(EMPHASIZED_DECELERATE).setListener(null).start();
+                }
             }
         } else {
             if (mAlphabetIndexer != null) {
@@ -554,6 +589,9 @@ public class AppLibraryContainerView extends FrameLayout
                     public void onAnimationEnd(Animator animation) {
                         if (mSearchBar == null || !mSearchBar.isSearching()) {
                             mSearchResultsView.setVisibility(View.GONE);
+                            mSearchPanel.setVisibility(View.GONE);
+                            mSearchPanel.setAlpha(1f);
+                            mSearchPanel.setTranslationY(0f);
                         }
                     }
                 }).start();
@@ -630,6 +668,7 @@ public class AppLibraryContainerView extends FrameLayout
     }
 
     public void reset() {
+        if (mSearchPanel != null) mSearchPanel.animate().setListener(null).cancel();
         cancelPullToSearch();
         if (mBlurAnimator != null) {
             mBlurAnimator.cancel();
@@ -647,7 +686,7 @@ public class AppLibraryContainerView extends FrameLayout
             mSearchBar.resetSearch();
         }
         if (mSearchResultsView != null) {
-            mSearchResultsView.animate().cancel();
+            mSearchResultsView.animate().setListener(null).cancel();
             mSearchResultsView.setVisibility(View.GONE);
             mSearchResultsView.setAlpha(0f);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -656,6 +695,11 @@ public class AppLibraryContainerView extends FrameLayout
         }
         if (mAlphabetIndexer != null) {
             mAlphabetIndexer.setVisibility(View.GONE);
+        }
+        if (mSearchPanel != null) {
+            mSearchPanel.setVisibility(View.GONE);
+            mSearchPanel.setAlpha(1f);
+            mSearchPanel.setTranslationY(0f);
         }
         if (mPendingRecentAppsBind) {
             mPendingRecentAppsBind = false;

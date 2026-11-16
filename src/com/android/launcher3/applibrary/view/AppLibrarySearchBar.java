@@ -136,13 +136,17 @@ public class AppLibrarySearchBar extends LinearLayout {
     }
 
     public void setSearching(boolean searching) {
+        setSearching(searching, true);
+    }
+
+    void setSearching(boolean searching, boolean showKeyboard) {
         if (mIsSearching == searching) {
             return;
         }
         mIsSearching = searching;
         if (mSearchInput != null) {
             mSearchInput.setGravity(searching ? (Gravity.CENTER_VERTICAL | Gravity.START) : Gravity.CENTER);
-            if (searching) {
+            if (searching && showKeyboard) {
                 showKeyboard();
             }
         }
