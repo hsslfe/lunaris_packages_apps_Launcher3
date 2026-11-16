@@ -1117,7 +1117,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     @Override
     protected void onPause() {
         if (mUnlockAnimationController != null) {
-            mUnlockAnimationController.cancel();
+            mUnlockAnimationController.onLauncherHidden();
         }
         if (mLauncherUnfoldAnimationController != null) {
             mLauncherUnfoldAnimationController.onPause();
@@ -1143,7 +1143,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     @Override
     protected void onStop() {
         if (mUnlockAnimationController != null) {
-            mUnlockAnimationController.cancel();
+            mUnlockAnimationController.onLauncherHidden();
         }
         super.onStop();
         if (mTaskbarInteractor != null && FeatureFlags.enableHomeTransitionListener()) {

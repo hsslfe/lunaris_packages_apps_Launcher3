@@ -1,5 +1,10 @@
 package com.android.quickstep;
 
+import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_AWAKE;
+import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DEVICE_DOZING;
+import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_STATUS_BAR_KEYGUARD_GOING_AWAY;
+import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING;
+
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -55,6 +60,7 @@ public class HomeUnlockRevealControllerTest {
         when(mLauncher.getSystemService(KeyguardManager.class)).thenReturn(mKeyguard);
         when(mLauncher.getSystemService(PowerManager.class)).thenReturn(mPower);
         when(mLauncher.hasBeenResumed()).thenReturn(true);
+        when(mLauncher.isStarted()).thenReturn(true);
         when(mDragLayer.hasWindowFocus()).thenReturn(true);
         when(mPower.isInteractive()).thenReturn(true);
         when(mAnimation.prepareForUnlock()).thenReturn(true);
@@ -96,6 +102,82 @@ public class HomeUnlockRevealControllerTest {
     private void runFrame() {
         assertEquals(1, mFrames.size());
         mFrames.remove(0).run();
+    }
+
+    @Test
+    public void systemUiGoingAway_startsBeforeKeyguardManagerAndFocusCatchUp() {
+        when(mLauncher.hasBeenResumed()).thenReturn(false);
+        when(mDragLayer.hasWindowFocus()).thenReturn(false);
+        when(mKeyguard.isKeyguardLocked()).thenReturn(true);
+        mController.onSystemUiStateChanged(
+                SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING | SYSUI_STATE_DEVICE_DOZING);
+        mController.onSystemUiStateChanged(
+                SYSUI_STATE_AWAKE
+                        | SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING
+                        | SYSUI_STATE_STATUS_BAR_KEYGUARD_GOING_AWAY);
+        runFrame();
+        verify(mAnimation).prepareForUnlock();
+        verify(mAnimation).finishPreparation();
+        mController.onUserPresent();
+        assertEquals(0, mFrames.size());
+    }
+
+    @Test
+    public void systemUiUnlockWithoutBroadcasts_stillStartsReveal() {
+        mController.onSystemUiStateChanged(
+                SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING | SYSUI_STATE_DEVICE_DOZING);
+        mController.onSystemUiStateChanged(SYSUI_STATE_AWAKE);
+        runFrame();
+        verify(mAnimation).prepareForUnlock();
+    }
+
+    @Test
+    public void initialUnlockedSystemUiState_doesNotReplayUnlockOnLauncherStart() {
+        mController.onSystemUiStateChanged(SYSUI_STATE_AWAKE);
+        assertEquals(0, mFrames.size());
+        verify(mAnimation, never()).prepareForUnlock();
+    }
+
+    @Test
+    public void pauseAndStopDuringWake_keepPendingRevealUntilHomeIsReady() {
+        when(mLauncher.hasBeenResumed()).thenReturn(false);
+        mController.onUserPresent();
+        runFrame();
+        mController.onLauncherHidden();
+        mController.onLauncherHidden();
+        when(mLauncher.hasBeenResumed()).thenReturn(true);
+        mController.onLauncherReady();
+        runFrame();
+        verify(mAnimation).prepareForUnlock();
+    }
+
+    @Test
+    public void latePauseWhileKeyguardGoesAway_requeuesForTheNextStartedHomeFrame() {
+        when(mLauncher.hasBeenResumed()).thenReturn(false);
+        when(mDragLayer.hasWindowFocus()).thenReturn(false);
+        mController.onSystemUiStateChanged(
+                SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING | SYSUI_STATE_DEVICE_DOZING);
+        mController.onSystemUiStateChanged(
+                SYSUI_STATE_AWAKE | SYSUI_STATE_STATUS_BAR_KEYGUARD_GOING_AWAY);
+        runFrame();
+        clearInvocations(mAnimation);
+        when(mLauncher.isStarted()).thenReturn(false);
+        mController.onLauncherHidden();
+        runFrame();
+        verify(mAnimation, never()).prepareForUnlock();
+        when(mLauncher.isStarted()).thenReturn(true);
+        mController.onLauncherReady();
+        runFrame();
+        verify(mAnimation).prepareForUnlock();
+    }
+
+    @Test
+    public void userPresent_preservesAnInteractiveLockscreenRevealAlreadyInProgress() {
+        mController.prepareForUnlock(false, null, 0);
+        when(mAnimation.getUnlockAmount()).thenReturn(.4f);
+        clearInvocations(mAnimation);
+        mController.onUserPresent();
+        verify(mAnimation, never()).reset();
     }
 
     @Test
@@ -189,7 +271,8 @@ public class HomeUnlockRevealControllerTest {
         mController.onUserPresent();
         runFrame();
         mTimeouts.get(mTimeouts.size() - 1).run();
-        verify(mAnimation).reset();
+        // The prepared scene is restored as soon as the wake starts, before waiting for readiness.
+        verify(mAnimation, times(2)).reset();
         mController.prepareForUnlock(false, null, 0);
         mController.playUnlockAnimation(true, 300, 0);
         verify(mAnimation, never()).prepareForUnlock();
