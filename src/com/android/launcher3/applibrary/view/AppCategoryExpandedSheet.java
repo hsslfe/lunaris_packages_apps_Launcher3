@@ -107,6 +107,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
 
     @Override
     public void setInsets(Rect insets) {
+        if (mInsets.equals(insets)) return;
         mInsets.set(insets);
         requestLayout();
     }
@@ -268,6 +269,14 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         if (!animate) {
             mIsAnimating = false;
             setVisibility(View.GONE);
+            setAlpha(1f);
+            if (mCardView != null) {
+                mCardView.setAlpha(1f);
+                mCardView.setTranslationX(0f);
+                mCardView.setTranslationY(0f);
+                mCardView.setScaleX(1f);
+                mCardView.setScaleY(1f);
+            }
             if (mDismissListener != null) {
                 mDismissListener.onDismissFinished();
             }

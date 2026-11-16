@@ -62,6 +62,12 @@ public class AppLibraryTransitionController
             return;
         }
 
+        // Closing a partly pulled library must not carry vertical translation
+        // into the horizontal closing animation.
+        if (previous == 0f && mProgress > 0f) {
+            mAppLibraryView.cancelPullToSearch();
+        }
+
         float width = mLauncher.getDeviceProfile().getDeviceProperties().getWidthPx();
         boolean isRtl = Utilities.isRtl(mLauncher.getResources());
 
