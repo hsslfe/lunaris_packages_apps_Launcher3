@@ -86,20 +86,6 @@
 
         </com.android.launcher3.applibrary.view.AppLibrarySearchBar>
 
-        <LinearLayout
-            android:id="@+id/app_library_recent_apps"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
-            android:layout_marginBottom="8dp"
-            android:padding="8dp"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:background="@drawable/app_library_card_bg"
-            android:contentDescription="@string/app_library_recent_apps"
-            android:visibility="gone" />
-
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
