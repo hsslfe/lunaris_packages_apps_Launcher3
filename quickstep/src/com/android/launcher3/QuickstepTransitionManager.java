@@ -349,200 +349,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
     private final Interpolator mOpeningXInterpolator;
     private final Interpolator mOpeningInterpolator;
-    private LaunchPreview mImmediatePreview;
-
-    /** Give icon taps their first frame without waiting for WM's opening app surface. */
-    @Nullable
-    public Runnable beginImmediateAppLaunch(View source, ItemInfo item) {
-        cancelImmediateAppLaunch();
-        if (!mCosAppAnimations || !(source instanceof BubbleTextView icon) || item == null
-                || item.itemType != LauncherSettings.Favorites.ITEM_TYPE_APPLICATION
-                || item.shouldUseBackgroundAnimation() || icon.getIcon() == null
-                || !ValueAnimator.areAnimatorsEnabled()
-                || !source.isAttachedToWindow() || mLauncher.isInMultiWindowMode()
-                || mLauncher.shouldShowHomeBehindDesktop()
-                || !mLauncher.getSystemService(android.os.PowerManager.class).isInteractive()) {
-            return null;
-        }
-        android.view.ViewGroup root = (android.view.ViewGroup) mDragLayer.getParent();
-        if (root == null || !root.isAttachedToWindow()
-                || root.getWidth() == 0 || root.getHeight() == 0) return null;
-        InteractionBoost.requestForAnimation(source);
-        LaunchPreview preview = new LaunchPreview(root, icon);
-        mImmediatePreview = preview;
-        preview.start();
-        return preview::remove;
-    }
-
-    public void cancelImmediateAppLaunch() {
-        if (mImmediatePreview != null) mImmediatePreview.remove();
-    }
-
-    public void cancelImmediateAppLaunch(View source) {
-        if (mImmediatePreview != null && mImmediatePreview.source == source) {
-            mImmediatePreview.remove();
-        }
-    }
-
-    /** A noninteractive overlay, using the same crop/scale path as the real opening window. */
-    private final class LaunchPreview extends View {
-        final BubbleTextView source;
-        final android.view.ViewGroup root;
-        final RectF iconBounds = new RectF();
-        final RectF frame = new RectF();
-        final Rect drawableBounds = new Rect();
-        final Rect predictedScreenBounds = new Rect();
-        final float endRadius = getWindowCornerRadius(mLauncher);
-        final android.graphics.Paint fill = new android.graphics.Paint(
-                android.graphics.Paint.ANTI_ALIAS_FLAG);
-        final android.graphics.drawable.Drawable logo;
-        final AnimOpenProperties properties;
-        final float originalAlpha;
-        final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
-        float progress;
-        boolean sourceRestored;
-        final Runnable timeout = this::remove;
-        boolean removed;
-        boolean handedOff;
-
-        LaunchPreview(android.view.ViewGroup root, BubbleTextView source) {
-            super(mLauncher);
-            this.root = root;
-            this.source = source;
-            originalAlpha = source.getAlpha();
-            Rect local = new Rect();
-            source.getIconBounds(local);
-            Utilities.getBoundsForViewInDragLayer(mDragLayer, source, local,
-                    false, null, iconBounds);
-            int[] dragLocation = new int[2];
-            int[] rootLocation = new int[2];
-            mDragLayer.getLocationOnScreen(dragLocation);
-            root.getLocationOnScreen(rootLocation);
-            iconBounds.offset(dragLocation[0] - rootLocation[0],
-                    dragLocation[1] - rootLocation[1]);
-            Rect target = new Rect(0, 0, root.getWidth(), root.getHeight());
-            if (enableDynamicInsetsForAppLaunch() && mDeviceProfile.isTaskbarPresent
-                    && mDeviceProfile.isTaskbarPresentInApps
-                    && !isTransientTaskbar()) {
-                int bottom = mSystemUiProxy.getHomeVisibilityState().getNavbarInsetPosition()
-                        - rootLocation[1];
-                if (bottom > 0) target.bottom = Math.min(target.bottom, bottom);
-            }
-            predictedScreenBounds.set(target);
-            predictedScreenBounds.offset(rootLocation[0], rootLocation[1]);
-            properties = new AnimOpenProperties(getResources(), mDeviceProfile, target, iconBounds,
-                    source, 0, 0, false, false, Float.NaN);
-            android.graphics.drawable.Drawable.ConstantState state =
-                    source.getIcon().getConstantState();
-            logo = state == null ? source.getIcon() : state.newDrawable(getResources()).mutate();
-            android.util.TypedValue color = new android.util.TypedValue();
-            mLauncher.getTheme().resolveAttribute(android.R.attr.colorBackground, color, true);
-            fill.setColor(color.type >= android.util.TypedValue.TYPE_FIRST_COLOR_INT
-                    && color.type <= android.util.TypedValue.TYPE_LAST_COLOR_INT
-                    ? color.data : 0xff121212);
-            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
-            setClickable(false);
-            animator.setDuration(CosAppAnimation.LAUNCH_DURATION);
-            animator.setInterpolator(LINEAR);
-            animator.addUpdateListener(value -> {
-                if (mLauncher.isDestroyed() || !root.isAttachedToWindow()) {
-                    remove();
-                    return;
-                }
-                setProgress((Float) value.getAnimatedValue());
-            });
-        }
-
-        void start() {
-            layout(0, 0, root.getWidth(), root.getHeight());
-            root.getOverlay().add(this);
-            source.setAlpha(0f);
-            postDelayed(timeout, 5000);
-            animator.start();
-        }
-
-        long elapsed() {
-            return Math.round(progress * CosAppAnimation.LAUNCH_DURATION);
-        }
-
-        void setProgress(float progress) {
-            if (removed) return;
-            this.progress = progress;
-            invalidate();
-        }
-
-        @Override
-        protected void onDraw(android.graphics.Canvas canvas) {
-            if (removed) return;
-            float t = mOpeningInterpolator.getInterpolation(progress);
-            float iconScale = Utilities.mapRange(t, properties.initialAppIconScale,
-                    properties.finalAppIconScale);
-            float cropWidth = Utilities.mapRange(t, properties.cropWidthStart,
-                    properties.cropWidthEnd);
-            float cropHeight = Utilities.mapRange(t, properties.cropHeightStart,
-                    properties.cropHeightEnd);
-            float scale = Math.min(1f, Math.max(iconBounds.width() * iconScale / cropWidth,
-                    iconBounds.height() * iconScale / cropHeight));
-            float cx = iconBounds.centerX() + properties.dX * t;
-            float cy = iconBounds.centerY() + properties.dY * t;
-            float width = cropWidth * scale;
-            float height = cropHeight * scale;
-            frame.set(cx - width / 2, cy - height / 2, cx + width / 2, cy + height / 2);
-            float startRadius = supportsRoundedCornersOnWindows(getResources())
-                    ? properties.cropWidthStart / 2f : 0f;
-            float radius = Utilities.mapRange(t, startRadius, endRadius) * scale;
-            fill.setAlpha(Math.round(255 * Math.min(1f, progress * 8f)));
-            canvas.drawRoundRect(frame, radius, radius, fill);
-            float size = Math.min(Math.min(width, height), properties.cropWidthStart * scale);
-            drawableBounds.set(logo.getBounds());
-            logo.setBounds(Math.round(cx - size / 2), Math.round(cy - size / 2),
-                    Math.round(cx + size / 2), Math.round(cy + size / 2));
-            logo.draw(canvas);
-            logo.setBounds(drawableBounds);
-        }
-
-        boolean matchesWindow(RemoteAnimationTarget[] targets) {
-            Rect actual = getWindowTargetBounds(targets, 0);
-            for (RemoteAnimationTarget target : targets) {
-                if (target.mode != MODE_OPENING) continue;
-                if (shouldCropToInset(target)) {
-                    actual.bottom = Math.min(actual.bottom,
-                            mSystemUiProxy.getHomeVisibilityState().getNavbarInsetPosition());
-                }
-                return actual.equals(predictedScreenBounds);
-            }
-            return false;
-        }
-
-        void handOff() {
-            if (removed || handedOff) return;
-            handedOff = true;
-            animator.cancel();
-            removeCallbacks(timeout);
-            postOnAnimation(() -> {
-                if (!removed) animate().alpha(0f).setDuration(64).withEndAction(this::remove).start();
-            });
-        }
-
-        void restoreSource() {
-            if (!sourceRestored) {
-                sourceRestored = true;
-                source.setAlpha(originalAlpha);
-            }
-        }
-
-        void remove() {
-            if (removed) return;
-            removed = true;
-            animator.cancel();
-            removeCallbacks(timeout);
-            animate().cancel();
-            root.getOverlay().remove(this);
-            restoreSource();
-            if (mImmediatePreview == this) mImmediatePreview = null;
-        }
-    }
-
     private final boolean mCosAppAnimations;
 
     private final SystemUiProxy mSystemUiProxy;
@@ -588,7 +394,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
     @Override
     public void onDeviceProfileChanged(DeviceProfile dp) {
-        cancelImmediateAppLaunch();
         mDeviceProfile = dp;
     }
 
@@ -619,10 +424,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
     public ActivityOptionsWrapper getActivityLaunchOptions(View v, ItemInfo itemInfo) {
         boolean fromRecents = isLaunchingFromRecents(v, null /* targets */);
         RunnableList onEndCallback = new RunnableList();
-        LaunchPreview preview = mImmediatePreview != null && mImmediatePreview.source == v
-                ? mImmediatePreview : null;
-        if (preview != null) onEndCallback.add(preview::remove);
-
         // Handle the case where an already visible task is launched which results in no transition
         TaskRestartedDuringLaunchListener restartedListener =
                 new TaskRestartedDuringLaunchListener();
@@ -789,7 +590,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             @NonNull RemoteAnimationTarget[] appTargets,
             @NonNull RemoteAnimationTarget[] wallpaperTargets,
             @NonNull RemoteAnimationTarget[] nonAppTargets,
-            boolean launcherClosing, @Nullable LaunchPreview preview) {
+            boolean launcherClosing) {
         // Set the state animation first so that any state listeners are called
         // before our internal listeners.
         mLauncher.getStateManager().setCurrentAnimation(anim);
@@ -797,7 +598,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         // Note: the targetBounds are relative to the launcher
         int startDelay = mCosAppAnimations ? 0 : getSingleFrameMs(mLauncher);
         Animator windowAnimator = getOpeningWindowAnimators(
-                v, appTargets, wallpaperTargets, nonAppTargets, launcherClosing, preview);
+                v, appTargets, wallpaperTargets, nonAppTargets, launcherClosing);
         windowAnimator.setStartDelay(startDelay);
         anim.play(windowAnimator);
         if (launcherClosing) {
@@ -1063,7 +864,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             RemoteAnimationTarget[] appTargets,
             RemoteAnimationTarget[] wallpaperTargets,
             RemoteAnimationTarget[] nonAppTargets,
-            boolean launcherClosing, @Nullable LaunchPreview preview) {
+            boolean launcherClosing) {
         final long launchDuration = mCosAppAnimations
                 ? CosAppAnimation.LAUNCH_DURATION : APP_LAUNCH_DURATION;
         RemoteAnimationTargets openingTargets = new RemoteAnimationTargets(appTargets,
@@ -1103,12 +904,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
         int[] dragLayerBounds = new int[2];
         mDragLayer.getLocationOnScreen(dragLayerBounds);
-        if (preview != null) {
-            launcherIconBounds.set(preview.iconBounds);
-            launcherIconBounds.offset(preview.predictedScreenBounds.left - dragLayerBounds[0],
-                    preview.predictedScreenBounds.top - dragLayerBounds[1]);
-        }
-
         final boolean hasSplashScreen;
         if (ENABLE_SHELL_STARTING_SURFACE) {
             int taskId = openingTargets.getFirstAppTargetTaskId();
@@ -1126,8 +921,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
         AnimOpenProperties prop = new AnimOpenProperties(mLauncher.getResources(), mDeviceProfile,
                 windowTargetBounds, launcherIconBounds, v, dragLayerBounds[0], dragLayerBounds[1],
-                hasSplashScreen, floatingView.isDifferentFromAppIcon(),
-                preview == null ? Float.NaN : preview.properties.initialAppIconScale);
+                hasSplashScreen, floatingView.isDifferentFromAppIcon(), Float.NaN);
         int left = prop.cropCenterXStart - prop.cropWidthStart / 2;
         int top = prop.cropCenterYStart - prop.cropHeightStart / 2;
         int right = left + prop.cropWidthStart;
@@ -1867,7 +1661,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
     }
 
     public void onActivityDestroyed() {
-        cancelImmediateAppLaunch();
         unregisterRemoteAnimations();
         unregisterRemoteTransitions();
         mLauncher.removeOnDeviceProfileChangeListener(this);
@@ -2692,14 +2485,11 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         private final View mV;
         private final RunnableList mOnEndCallback;
         private AnimatorSet mCosAnimation;
-        private final LaunchPreview mPreview;
         private boolean mCancelled;
 
         AppLaunchAnimationRunner(View v, RunnableList onEndCallback) {
             mV = v;
             mOnEndCallback = onEndCallback;
-            mPreview = mImmediatePreview != null && mImmediatePreview.source == v
-                    ? mImmediatePreview : null;
         }
 
         @Override
@@ -2709,7 +2499,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 RemoteAnimationTarget[] nonAppTargets,
                 LauncherAnimationRunner.AnimationResult result) {
             if (mCosAppAnimations && (mCancelled || mLauncher.isDestroyed())) {
-                if (mPreview != null) mPreview.remove();
                 result.setAnimation(null, mLauncher, mOnEndCallback::executeAllAndDestroy, false);
                 return;
             }
@@ -2731,15 +2520,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             final boolean launchingFromWidget = mV instanceof LauncherAppWidgetHostView;
             final boolean launchingFromRecents = isLaunchingFromRecents(mV, appTargets);
             final boolean skipFirstFrame;
-            boolean continuePreview = mPreview != null && !mPreview.removed
-                    && !launchingFromWidget && !launchingFromRecents
-                    && getRotationChange(appTargets) == 0
-                    && !areAllTargetsTranslucent(appTargets)
-                    && mPreview.matchesWindow(appTargets);
-            if (mPreview != null) {
-                if (!continuePreview) mPreview.remove();
-                else mPreview.restoreSource();
-            }
             if (launchingFromWidget) {
                 composeWidgetLaunchAnimator(anim, (LauncherAppWidgetHostView) mV, appTargets,
                         wallpaperTargets, nonAppTargets, launcherClosing);
@@ -2753,7 +2533,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 skipFirstFrame = true;
             } else {
                 composeIconLaunchAnimator(anim, mV, appTargets, wallpaperTargets, nonAppTargets,
-                        launcherClosing, continuePreview ? mPreview : null);
+                        launcherClosing);
                 addCujInstrumentation(anim, Cuj.CUJ_LAUNCHER_APP_LAUNCH_FROM_ICON);
                 skipFirstFrame = false;
             }
@@ -2774,14 +2554,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 }
             }
 
-            long previewPlayTime = continuePreview ? mPreview.elapsed() : 0;
             result.setAnimation(anim, mLauncher, mOnEndCallback::executeAllAndDestroy,
                     skipFirstFrame);
-            if (continuePreview && anim.isStarted()) {
-                anim.setCurrentPlayTime(Math.min(previewPlayTime,
-                        Math.max(0, anim.getTotalDuration() - 1)));
-                mPreview.handOff();
-            }
         }
 
         @Override
