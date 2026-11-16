@@ -166,6 +166,7 @@ import com.android.quickstep.util.CrossDisplayMoveTransition;
 import com.android.quickstep.util.MultiValueUpdateListener;
 import com.android.quickstep.util.OosAppCloseAnimation;
 import com.android.quickstep.cos.CosAppAnimation;
+import com.android.quickstep.cos.CosCloseAnimation;
 import com.android.quickstep.cos.CosWorkspaceRevealAnim;
 import com.android.quickstep.util.RectFSpringAnim;
 import com.android.quickstep.util.RectFSpringAnim.DefaultSpringConfig;
@@ -2054,6 +2055,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         FloatingIconView floatingIconView = null;
         FloatingWidgetView floatingWidget = null;
         RectF targetRect = new RectF();
+        final boolean isQsbTarget = launcherView != null && mLauncher.getHotseat() != null
+                && mLauncher.getHotseat().isQsbView(launcherView);
 
         RemoteAnimationTarget runningTaskTarget = null;
         boolean isTransluscent = false;
@@ -2083,7 +2086,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                     mLauncher.getTaskbarInteractor() == null
                             ? null
                             : mLauncher.getTaskbarInteractor().findMatchingAsyncView(launcherView),
-                    true /* hideOriginal */, targetRect, false /* isOpening */);
+                    !isQsbTarget /* hideOriginal */, targetRect, false /* isOpening */);
         } else {
             targetRect.set(getDefaultWindowTargetRect());
         }
@@ -2093,7 +2096,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 && !isTransluscent
                 && !mDeviceProfile.getDeviceProperties().isTablet()
                 && !mDeviceProfile.isTaskbarPresent;
-        final boolean useCosSpring = mCosAppAnimations
+        final boolean useCosSpring = mCosAppAnimations && !isQsbTarget
                 && (floatingIconView != null || islandTarget != null)
                 && !isTransluscent;
         RectFSpringAnim anim = new RectFSpringAnim(useCosSpring
@@ -2109,6 +2112,10 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                                         closingWindowStartRectF, targetRect)
                                 : new DefaultSpringConfig(mLauncher, mDeviceProfile,
                                         closingWindowStartRectF, targetRect));
+
+        if (mCosAppAnimations) {
+            anim.addAnimatorListener(new CosCloseAnimation(mLauncher, anim::end));
+        }
 
         // Hook up floating views to the closing window animators.
         // note the coordinate of closingWindowStartRect is based on launcher
@@ -2269,6 +2276,9 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         Rect fallbackCrop = new Rect();
         SurfaceTransaction transaction = new SurfaceTransaction();
         ValueAnimator closingAnimator = ValueAnimator.ofFloat(0, 1);
+        if (mCosAppAnimations) {
+            closingAnimator.addListener(new CosCloseAnimation(mLauncher, closingAnimator::end));
+        }
         int duration = CLOSING_TRANSITION_DURATION_MS;
         float durationScale = duration / 330f;
         float windowCornerRadius = getWindowCornerRadius(mLauncher);

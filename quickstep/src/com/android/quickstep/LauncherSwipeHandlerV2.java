@@ -54,6 +54,7 @@ import com.android.quickstep.util.ActiveGestureLog;
 import com.android.quickstep.util.LunarisBarAnimation;
 import com.android.quickstep.util.OosAppCloseAnimation;
 import com.android.quickstep.cos.CosAppAnimation;
+import com.android.quickstep.cos.CosCloseAnimation;
 import com.android.quickstep.cos.CosWorkspaceRevealAnim;
 import com.android.quickstep.util.RectFSpringAnim;
 import com.android.quickstep.util.ScalingWorkspaceRevealAnim;
@@ -180,11 +181,13 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
     private HomeAnimationFactory createIconHomeAnimationFactory(
             View workspaceView, @Nullable TaskView targetTaskView, boolean isTargetTranslucent) {
         RectF iconLocation = new RectF();
+        final boolean isQsbTarget = mContainer.getHotseat() != null
+                && mContainer.getHotseat().isQsbView(workspaceView);
         FloatingIconView floatingIconView = getFloatingIconView(mContainer, workspaceView, null,
                 mContainer.getTaskbarInteractor() == null
                         ? null
                         : mContainer.getTaskbarInteractor().findMatchingAsyncView(workspaceView),
-                true /* hideOriginal */, iconLocation, false /* isOpening */);
+                !isQsbTarget /* hideOriginal */, iconLocation, false /* isOpening */);
 
         // We want the window alpha to be 0 once this threshold is met, so that the
         // FloatingIconView can be seen morphing into the icon shape.
@@ -229,6 +232,9 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
             public void setAnimation(RectFSpringAnim anim) {
                 super.setAnimation(anim);
                 mSiblingAnimation = anim;
+                if (CosAppAnimation.isEnabled(mContainer) && !isQsbTarget) {
+                    anim.addAnimatorListener(new CosCloseAnimation(mContainer, anim::end));
+                }
                 mSiblingAnimation.addAnimatorListener(floatingIconView);
                 floatingIconView.setAllowParallelAnimation(anim.isCos());
                 floatingIconView.setOnTargetChangeListener(
@@ -250,7 +256,7 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
 
             @Override
             public boolean shouldUseCosCloseAnimation() {
-                return isAnimatingIntoIcon() && !isTargetTranslucent
+                return !isQsbTarget && isAnimatingIntoIcon() && !isTargetTranslucent
                         && targetTaskView == null && !mIsSwipeForSplit && !mIsSwipingPipToHome
                         && mRemoteTargetHandles.length == 1;
             }

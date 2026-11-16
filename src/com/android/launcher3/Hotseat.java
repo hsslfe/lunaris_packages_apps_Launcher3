@@ -737,6 +737,16 @@ public class Hotseat extends CellLayout implements Insettable {
         return mQsb;
     }
 
+    /** Returns whether a view is the hotseat search bar or one of its descendants. */
+    public boolean isQsbView(@Nullable View view) {
+        View current = view;
+        while (current != null) {
+            if (current == mQsb) return true;
+            current = current.getParent() instanceof View parent ? parent : null;
+        }
+        return false;
+    }
+
     @Nullable
     @Override
     public View mapOverItems(ItemOperator op) {
