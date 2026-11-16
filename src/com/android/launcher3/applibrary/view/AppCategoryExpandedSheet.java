@@ -96,7 +96,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
             GradientDrawable background = (GradientDrawable) mCardView.getBackground().mutate();
             int surface = ColorUtils.blendARGB(
                     Themes.getAttrColor(getContext(), R.attr.allAppsSurfaceLow), Color.BLACK,
-                    Utilities.isDarkTheme(getContext()) ? .55f : .10f);
+                    Utilities.isDarkTheme(getContext()) ? .50f : .08f);
             background.setColor(ColorUtils.setAlphaComponent(surface, 217)); // 85% opacity.
         }
 
