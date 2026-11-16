@@ -1117,7 +1117,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                     return;
                 }
 
-                if (preview != null) preview.setProgress(percent);
                 SurfaceTransaction transaction = new SurfaceTransaction();
 
                 for (int i = appTargets.length - 1; i >= 0; i--) {
