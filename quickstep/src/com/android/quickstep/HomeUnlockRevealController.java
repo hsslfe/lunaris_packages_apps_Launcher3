@@ -44,19 +44,26 @@ public final class HomeUnlockRevealController extends ILauncherUnlockAnimationCo
         implements SharedPreferences.OnSharedPreferenceChangeListener,
                 ScreenOnTracker.ScreenOnListener {
     private static final long PREPARE_TIMEOUT_MS = 2000;
-    private static final long USER_PRESENT_TIMEOUT_MS = 1000;
+    private static final long USER_PRESENT_TIMEOUT_MS = 400;
+    private static final long WAKE_UNLOCK_DURATION_MS = 400;
 
     private QuickstepLauncher mLauncher;
     private HomeUnlockReveal mWorkspaceAnimation;
     private ValueAnimator mAnimator;
     private boolean mPrepared;
-    private boolean mUnlockAnimationStarted;
+    private boolean mUnlockHandled;
     private boolean mUserPresentPending;
     private boolean mPlayingFallback;
     private final KeyguardManager mKeyguardManager;
     private final PowerManager mPowerManager;
     private final Runnable mPrepareTimeout = this::cancel;
-    private final Runnable mUserPresentTimeout = this::clearUserPresent;
+    private final Runnable mUserPresentTimeout =
+            () -> {
+                // Do not leave prepared icons hidden or replay an expired wake after Home is
+                // visible.
+                cancel();
+                mUnlockHandled = true;
+            };
     private final Runnable mTryUserPresent = this::tryUserPresent;
     private final Runnable mSystemUiConnectionListener =
             () -> {
@@ -87,7 +94,7 @@ public final class HomeUnlockRevealController extends ILauncherUnlockAnimationCo
     public void onScreenOnChanged(boolean isOn) {
         if (!isOn) {
             cancel();
-            mUnlockAnimationStarted = false;
+            mUnlockHandled = false;
         } else if (mKeyguardManager != null
                 && !mKeyguardManager.isKeyguardLocked()
                 && mPowerManager != null
@@ -100,7 +107,7 @@ public final class HomeUnlockRevealController extends ILauncherUnlockAnimationCo
     @Override
     public void onUserPresent() {
         // Wake-and-unlock can bypass SystemUI's lock-screen animation callbacks entirely.
-        if (!isEnabled() || mUnlockAnimationStarted || mUserPresentPending) return;
+        if (!isEnabled() || mUnlockHandled || mUserPresentPending) return;
         mUserPresentPending = true;
         mLauncher.getDragLayer().postDelayed(mUserPresentTimeout, USER_PRESENT_TIMEOUT_MS);
         onLauncherReady();
@@ -115,7 +122,7 @@ public final class HomeUnlockRevealController extends ILauncherUnlockAnimationCo
 
     private void tryUserPresent() {
         if (!mUserPresentPending) return;
-        if (!isEnabled() || mUnlockAnimationStarted) {
+        if (!isEnabled() || mUnlockHandled) {
             clearUserPresent();
             return;
         }
@@ -144,7 +151,7 @@ public final class HomeUnlockRevealController extends ILauncherUnlockAnimationCo
             boolean animateSmartspace, Rect lockscreenSmartspaceBounds, int selectedPage) {
         Runnable prepare =
                 () -> {
-                    if (mUnlockAnimationStarted) return;
+                    if (mUnlockHandled) return;
                     resetAnimation();
                     if (isEnabled()) {
                         mPrepared = mWorkspaceAnimation.prepareForUnlock();
@@ -186,7 +193,7 @@ public final class HomeUnlockRevealController extends ILauncherUnlockAnimationCo
                     stopAnimator();
                     if (amount >= 1f) {
                         if (mPrepared && mWorkspaceAnimation.getUnlockAmount() > 0f) {
-                            mUnlockAnimationStarted = true;
+                            mUnlockHandled = true;
                             clearUserPresent();
                         }
                         resetAnimation();
@@ -207,7 +214,7 @@ public final class HomeUnlockRevealController extends ILauncherUnlockAnimationCo
                         cancel();
                         return;
                     }
-                    if (unlocked && mUnlockAnimationStarted) return;
+                    if (unlocked && mUnlockHandled) return;
                     // Biometric wake-and-unlock may call play without a preceding prepare callback.
                     if (!mPrepared || !mWorkspaceAnimation.isPrepared()) {
                         mPrepared = mWorkspaceAnimation.prepareForUnlock();
@@ -231,12 +238,15 @@ public final class HomeUnlockRevealController extends ILauncherUnlockAnimationCo
                     ValueAnimator animator = ValueAnimator.ofFloat(from, to);
                     mAnimator = animator;
                     if (unlocked) {
-                        mUnlockAnimationStarted = true;
+                        mUnlockHandled = true;
                         clearUserPresent();
                     }
-                    animator.setDuration(
-                            Math.round(mWorkspaceAnimation.getDuration() * Math.abs(to - from)));
-                    long revealStartDelay = Math.max(0L, startDelay);
+                    boolean fastWake = unlocked && (mPlayingFallback || duration <= 0);
+                    long revealDuration = mWorkspaceAnimation.getDuration();
+                    if (fastWake)
+                        revealDuration = Math.min(revealDuration, WAKE_UNLOCK_DURATION_MS);
+                    animator.setDuration(Math.round(revealDuration * Math.abs(to - from)));
+                    long revealStartDelay = fastWake ? 0L : Math.max(0L, startDelay);
                     animator.setStartDelay(unlocked ? revealStartDelay / 2 : revealStartDelay);
                     animator.setInterpolator(LINEAR);
                     animator.addUpdateListener(

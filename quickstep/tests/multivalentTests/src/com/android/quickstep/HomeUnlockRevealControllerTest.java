@@ -173,9 +173,25 @@ public class HomeUnlockRevealControllerTest {
         when(mLauncher.hasBeenResumed()).thenReturn(true);
         mController.onLauncherReady();
         assertEquals(0, mFrames.size());
+        mController.onScreenOnChanged(false);
         mController.onUserPresent();
+        assertEquals(1, mFrames.size());
         mController.onScreenOnChanged(false);
         assertEquals(0, mFrames.size());
+        verify(mAnimation, never()).prepareForUnlock();
+    }
+
+    @Test
+    public void expiredWake_restoresPreparedIcons_andRejectsLateReplay() {
+        mController.prepareForUnlock(false, null, 0);
+        clearInvocations(mAnimation);
+        when(mLauncher.hasBeenResumed()).thenReturn(false);
+        mController.onUserPresent();
+        runFrame();
+        mTimeouts.get(mTimeouts.size() - 1).run();
+        verify(mAnimation).reset();
+        mController.prepareForUnlock(false, null, 0);
+        mController.playUnlockAnimation(true, 300, 0);
         verify(mAnimation, never()).prepareForUnlock();
     }
 
