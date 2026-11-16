@@ -51,7 +51,6 @@ public final class HomeUnlockRevealController extends ILauncherUnlockAnimationCo
     private static final long PREPARE_TIMEOUT_MS = 2000;
     private static final String TAG = "HomeUnlockReveal";
     private static final long USER_PRESENT_TIMEOUT_MS = 2000;
-    private static final long WAKE_UNLOCK_DURATION_MS = 400;
 
     private QuickstepLauncher mLauncher;
     private HomeUnlockReveal mWorkspaceAnimation;
@@ -325,12 +324,9 @@ public final class HomeUnlockRevealController extends ILauncherUnlockAnimationCo
                         mUnlockHandled = true;
                         clearUserPresent();
                     }
-                    boolean fastWake = unlocked && (mPlayingFallback || duration <= 0);
-                    long revealDuration = mWorkspaceAnimation.getDuration();
-                    if (fastWake)
-                        revealDuration = Math.min(revealDuration, WAKE_UNLOCK_DURATION_MS);
-                    animator.setDuration(Math.round(revealDuration * Math.abs(to - from)));
-                    long revealStartDelay = fastWake ? 0L : Math.max(0L, startDelay);
+                    animator.setDuration(
+                            Math.round(mWorkspaceAnimation.getDuration() * Math.abs(to - from)));
+                    long revealStartDelay = Math.max(0L, startDelay);
                     animator.setStartDelay(unlocked ? revealStartDelay / 2 : revealStartDelay);
                     animator.setInterpolator(LINEAR);
                     animator.addUpdateListener(
