@@ -47,7 +47,6 @@ public class AppLibraryContainerView extends FrameLayout
                 LauncherPrefChangeListener {
 
     private static final float CATEGORY_BLUR_RADIUS = 35f;
-    private static final float SEARCH_BACKGROUND_BLUR_RADIUS = 25f;
 
     private View mAppLibraryContent;
     private AppLibrarySearchBar mSearchBar;
@@ -509,13 +508,10 @@ public class AppLibraryContainerView extends FrameLayout
                 mAlphabetIndexer.setVisibility(View.VISIBLE);
             }
             if (mGridView != null) {
-                if (isBlurEnabled()) {
-                    mGridView.setRenderEffect(RenderEffect.createBlurEffect(
-                            SEARCH_BACKGROUND_BLUR_RADIUS,
-                            SEARCH_BACKGROUND_BLUR_RADIUS,
-                            Shader.TileMode.CLAMP));
-                }
-                mGridView.animate().alpha(0.2f).setDuration(180).setListener(null).start();
+                // The list surface stays, but only wallpaper should be visible through it.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) mGridView.setRenderEffect(null);
+                mGridView.setAlpha(0f);
+                mGridView.setVisibility(View.INVISIBLE);
             }
             if (mSearchResultsView != null) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

@@ -2,8 +2,11 @@ package com.android.launcher3.applibrary.view;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -88,5 +91,37 @@ public class AppLibraryAppearanceTest {
         icon.applyLabel("Camera");
         assertTrue(icon.shouldShowLabel());
         assertEquals("Camera", icon.getText().toString());
+    }
+
+    @Test
+    public void appList_hidesCategoriesButKeepsItsSurface_andCancelRestoresCategories() {
+        AppLibraryContainerView library =
+                (AppLibraryContainerView)
+                        LayoutInflater.from(mContext)
+                                .inflate(R.layout.app_library, new FrameLayout(mContext), false);
+        try {
+            library.onSearchStateChanged(true);
+            assertEquals(View.INVISIBLE, library.getGridView().getVisibility());
+            assertEquals(0f, library.getGridView().getAlpha(), 0f);
+            assertEquals(View.VISIBLE, library.getSearchResultsView().getVisibility());
+            assertNotNull(library.getSearchResultsView().getBackground());
+            library.onSearchStateChanged(false);
+            assertEquals(View.VISIBLE, library.getGridView().getVisibility());
+        } finally {
+            library.reset();
+        }
+    }
+
+    @Test
+    public void expandedCategory_keepsAnAlmostOpaqueSurface() {
+        View sheet =
+                LayoutInflater.from(mContext)
+                        .inflate(
+                                R.layout.app_library_expanded_sheet,
+                                new FrameLayout(mContext),
+                                false);
+        GradientDrawable background =
+                (GradientDrawable) sheet.findViewById(R.id.expanded_sheet_card).getBackground();
+        assertTrue(Color.alpha(background.getColor().getDefaultColor()) >= 240);
     }
 }
