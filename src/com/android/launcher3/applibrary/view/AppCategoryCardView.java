@@ -12,7 +12,9 @@ import androidx.annotation.Nullable;
 
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.Launcher;
+import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
+import com.android.launcher3.Utilities;
 import com.android.launcher3.applibrary.model.AppCategoryGroup;
 import com.android.launcher3.icons.FastBitmapDrawable;
 import com.android.launcher3.model.data.AppInfo;
@@ -89,32 +91,16 @@ public class AppCategoryCardView extends LinearLayout {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         if (mCardContent != null) {
-            int cardWidth = mCardContent.getMeasuredWidth();
-            int cardHeight = Math.round(cardWidth * 1.2f);
-
-            int cardWidthSpec = MeasureSpec.makeMeasureSpec(
-                    cardWidth, MeasureSpec.EXACTLY);
-            int cardHeightSpec = MeasureSpec.makeMeasureSpec(
-                    cardHeight, MeasureSpec.EXACTLY);
-
-            mCardContent.measure(cardWidthSpec, cardHeightSpec);
-
-            int totalHeight = mCardContent.getMeasuredHeight()
-                    + getPaddingTop() + getPaddingBottom();
-
-            if (mTitleView != null && mTitleView.getVisibility() != GONE) {
-                totalHeight += mTitleView.getMeasuredHeight();
-
-                MarginLayoutParams lp = (MarginLayoutParams) mTitleView.getLayoutParams();
-                if (lp != null) {
-                    totalHeight += lp.topMargin + lp.bottomMargin;
-                }
-            }
-
-            setMeasuredDimension(getMeasuredWidth(), totalHeight);
+            int width =
+                    MeasureSpec.getSize(widthMeasureSpec) - getPaddingLeft() - getPaddingRight();
+            boolean labels = LauncherPrefs.APP_LIBRARY_SHOW_LABELS.get(getContext());
+            mCardContent.getLayoutParams().height =
+                    Math.round(width * (labels ? 1.2f : .96f))
+                            + mTitleView.getLineHeight()
+                            + Utilities.dpToPx(6, getContext());
         }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
     }
 
     public void setOnCategoryExpandListener(OnCategoryExpandListener listener) {
