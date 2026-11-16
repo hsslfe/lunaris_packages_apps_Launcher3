@@ -117,21 +117,29 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal">
 
-                        <ImageView
+                        <com.android.launcher3.applibrary.view.AppLibraryIconView
                             android:id="@+id/mini_icon_0"
                             android:layout_width="22dp"
                             android:layout_height="22dp"
                             android:layout_margin="2dp"
                             android:contentDescription="@null"
-                            android:scaleType="fitCenter" />
+                            style="@style/BaseIcon"
+                            android:gravity="center"
+                            android:importantForAccessibility="no"
+                            launcher:iconDisplay="search_result_small"
+                            launcher:iconSizeOverride="22dp" />
 
-                        <ImageView
+                        <com.android.launcher3.applibrary.view.AppLibraryIconView
                             android:id="@+id/mini_icon_1"
                             android:layout_width="22dp"
                             android:layout_height="22dp"
                             android:layout_margin="2dp"
                             android:contentDescription="@null"
-                            android:scaleType="fitCenter" />
+                            style="@style/BaseIcon"
+                            android:gravity="center"
+                            android:importantForAccessibility="no"
+                            launcher:iconDisplay="search_result_small"
+                            launcher:iconSizeOverride="22dp" />
 
                     </LinearLayout>
 
@@ -140,21 +148,29 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal">
 
-                        <ImageView
+                        <com.android.launcher3.applibrary.view.AppLibraryIconView
                             android:id="@+id/mini_icon_2"
                             android:layout_width="22dp"
                             android:layout_height="22dp"
                             android:layout_margin="2dp"
                             android:contentDescription="@null"
-                            android:scaleType="fitCenter" />
+                            style="@style/BaseIcon"
+                            android:gravity="center"
+                            android:importantForAccessibility="no"
+                            launcher:iconDisplay="search_result_small"
+                            launcher:iconSizeOverride="22dp" />
 
-                        <ImageView
+                        <com.android.launcher3.applibrary.view.AppLibraryIconView
                             android:id="@+id/mini_icon_3"
                             android:layout_width="22dp"
                             android:layout_height="22dp"
                             android:layout_margin="2dp"
                             android:contentDescription="@null"
-                            android:scaleType="fitCenter" />
+                            style="@style/BaseIcon"
+                            android:gravity="center"
+                            android:importantForAccessibility="no"
+                            launcher:iconDisplay="search_result_small"
+                            launcher:iconSizeOverride="22dp" />
 
                     </LinearLayout>
 

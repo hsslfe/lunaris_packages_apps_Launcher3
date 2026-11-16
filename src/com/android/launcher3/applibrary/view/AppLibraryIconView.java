@@ -19,7 +19,13 @@ public class AppLibraryIconView extends BubbleTextView {
 
     @Override
     public boolean shouldShowLabel() {
-        return LauncherPrefs.APP_LIBRARY_SHOW_LABELS.get(getContext());
+        return !isDisplaySearchResult() && LauncherPrefs.APP_LIBRARY_SHOW_LABELS.get(getContext());
+    }
+
+    @Override
+    protected boolean shouldUseTheme() {
+        // Read the current preference when rebinding, rather than the constructor's cached value.
+        return LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION.get(getContext());
     }
 
     @Override
@@ -41,7 +47,10 @@ public class AppLibraryIconView extends BubbleTextView {
             mAvailableIconSize =
                     Math.max(
                             1,
-                            Math.min(width, height - labelHeight) - Utilities.dpToPx(4, getContext()));
+                            Math.min(width, height - labelHeight)
+                                    - (isDisplaySearchResult()
+                                            ? 0
+                                            : Utilities.dpToPx(4, getContext())));
         }
         setCompoundDrawablePadding(shouldShowLabel() ? Utilities.dpToPx(4, getContext()) : 0);
         super.onMeasure(widthSpec, heightSpec);

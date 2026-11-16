@@ -2,7 +2,10 @@ package com.android.launcher3.applibrary.view;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import android.content.ComponentName;
 import android.content.Intent;
@@ -22,6 +25,7 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.launcher3.R;
 import com.android.launcher3.applibrary.model.AppCategory;
 import com.android.launcher3.applibrary.model.AppCategoryGroup;
+import com.android.launcher3.applibrary.model.AppLibraryModel;
 import com.android.launcher3.icons.BitmapInfo;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.util.SandboxApplication;
@@ -119,6 +123,33 @@ public class AppLibraryScrollingTest {
             assertEquals(1, layout.getSpanSizeLookup().getSpanSize(0));
         } finally {
             library.reset();
+        }
+    }
+
+    @Test
+    public void appDataRefresh_updatesAnOpenFilteredList_withoutClearingItsQuery() {
+        AppLibraryContainerView library = createLibrary();
+        AppLibraryModel model = mock(AppLibraryModel.class);
+        AppInfo original = new AppInfo();
+        original.title = "Camera";
+        AppInfo updated = new AppInfo();
+        updated.title = "Camera";
+        when(model.getAllApps()).thenReturn(List.of(original));
+        when(model.searchApps("cam")).thenReturn(List.of(original));
+        library.setModel(model);
+        try {
+            library.getSearchBar().setSearching(true);
+            library.getSearchBar().getEditText().setText("cam");
+            AppLibrarySearchAdapter adapter =
+                    (AppLibrarySearchAdapter) library.getSearchResultsView().getAdapter();
+            assertSame(original, adapter.getApps().get(0));
+            when(model.searchApps("cam")).thenReturn(List.of(updated));
+            library.onAllAppsUpdated(List.of(updated));
+            assertSame(updated, adapter.getApps().get(0));
+            assertEquals("cam", library.getSearchBar().getEditText().getText().toString());
+        } finally {
+            library.reset();
+            library.setModel(null);
         }
     }
 
