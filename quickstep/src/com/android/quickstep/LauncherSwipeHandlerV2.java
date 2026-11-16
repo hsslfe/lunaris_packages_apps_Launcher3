@@ -21,6 +21,8 @@ import static com.android.launcher3.Utilities.mapBoundToRange;
 import static com.android.launcher3.views.FloatingIconView.SHAPE_PROGRESS_DURATION;
 import static com.android.quickstep.util.FloatingIconViewHelper.getFloatingIconView;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.content.Context;
 import android.graphics.Rect;
@@ -225,6 +227,9 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
                     return btv.getIconBackgroundCornerRadius()
                             * (cropRectF.width() / targetWidth);
                 }
+                if (isQsbTarget) {
+                    return Math.min(cropRectF.width(), cropRectF.height()) / 2f;
+                }
                 return super.getEndRadius(cropRectF);
             }
 
@@ -236,6 +241,25 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
                     anim.addAnimatorListener(new CosCloseAnimation(mContainer, anim::end));
                 }
                 mSiblingAnimation.addAnimatorListener(floatingIconView);
+                if (isQsbTarget) {
+                    final boolean[] squished = {false};
+                    final Runnable playSquish = () -> {
+                        if (squished[0]) return;
+                        squished[0] = true;
+                        if (mContainer.getHotseat() != null) {
+                            mContainer.getHotseat().playQsbSquishAnimation();
+                        }
+                    };
+                    mSiblingAnimation.addOnUpdateListener((rect, progress) -> {
+                        if (progress >= 0.9f) playSquish.run();
+                    });
+                    mSiblingAnimation.addAnimatorListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            playSquish.run();
+                        }
+                    });
+                }
                 floatingIconView.setAllowParallelAnimation(anim.isCos());
                 floatingIconView.setOnTargetChangeListener(
                         mSiblingAnimation::onTargetPositionChanged);
@@ -255,8 +279,13 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
             }
 
             @Override
+            public boolean isQsb() {
+                return isQsbTarget;
+            }
+
+            @Override
             public boolean shouldUseCosCloseAnimation() {
-                return !isQsbTarget && isAnimatingIntoIcon() && !isTargetTranslucent
+                return !isQsb() && isAnimatingIntoIcon() && !isTargetTranslucent
                         && targetTaskView == null && !mIsSwipeForSplit && !mIsSwipingPipToHome
                         && mRemoteTargetHandles.length == 1;
             }
@@ -265,6 +294,10 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
             protected float getWindowAlpha(float progress) {
                 if (mSiblingAnimation != null && mSiblingAnimation.isCos()) {
                     return 1f - mSiblingAnimation.getCosFadeProgress();
+                }
+                if (mSiblingAnimation != null && isQsb()) {
+                    float t = Math.max(0f, Math.min(1f, (progress - 0.3f) / 0.65f));
+                    return 1f - t * t * (3f - 2f * t);
                 }
                 return shouldUseIconCloseAnimation()
                         ? OosAppCloseAnimation.getWindowAlpha(progress)
@@ -285,7 +318,7 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
                 float iconAlpha = cos ? mSiblingAnimation.getCosFadeProgress() : useIconCloseAnimation
                         ? OosAppCloseAnimation.getIconAlpha(progress)
                         : Interpolators.clampToProgress(progress, 0f, windowAlphaThreshold);
-                float shapeProgressStart = cos ? 0f : useIconCloseAnimation
+                float shapeProgressStart = cos ? 0f : isQsb() ? 0.5f : useIconCloseAnimation
                         ? OosAppCloseAnimation.SHAPE_PROGRESS_START : windowAlphaThreshold;
                 floatingIconView.update(iconAlpha, currentRect, progress, shapeProgressStart,
                         radius, false, overlayAlpha);

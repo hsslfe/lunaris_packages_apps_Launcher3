@@ -150,6 +150,7 @@ public class RectFSpringAnim extends ReleaseCheck {
     private final boolean mUseIconSpringConfig;
     private final boolean mUseConfiguredSpring;
     private final boolean mCos;
+    private final boolean mQsb;
     private long mCosStartTime;
     private float mCosDurationScale;
     private float mCosFadeProgress;
@@ -175,8 +176,10 @@ public class RectFSpringAnim extends ReleaseCheck {
         mRectDamping = config.rectDamping;
         mUseIconSpringConfig = config instanceof IconSpringConfig;
         mCos = config instanceof CosSpringConfig;
+        mQsb = config instanceof QsbSpringConfig;
         mFrameUpdate = mCos ? this::dispatchFrameUpdate : null;
-        mUseConfiguredSpring = mUseIconSpringConfig || mCos || config instanceof WidgetSpringConfig;
+        mUseConfiguredSpring = mUseIconSpringConfig || mCos || mQsb
+                || config instanceof WidgetSpringConfig;
 
         mCurrentY = getTrackedYFromRect(mStartRect);
     }
@@ -311,6 +314,11 @@ public class RectFSpringAnim extends ReleaseCheck {
                 yVelocityPxPerS, mCos ? 500 : sCachedMinVelocityYPxPerS,
                 mCos ? 2500 : sCachedMaxVelocityYPxPerS,
                 sCachedFallOffFactor);
+
+        if (mQsb) {
+            xVelocityPxPerS *= 0.4f;
+            yVelocityPxPerS *= 0.4f;
+        }
 
         float durationScale = mUseIconSpringConfig ? OosAppCloseAnimation.DURATION_SCALE : 1f;
         xVelocityPxPerS /= durationScale;
@@ -632,6 +640,21 @@ public class RectFSpringAnim extends ReleaseCheck {
                 }
             }
             return tracking;
+        }
+    }
+
+    /** Softer spring for returning a search activity into its hotseat pill. */
+    public static final class QsbSpringConfig extends DefaultSpringConfig {
+        public QsbSpringConfig(Context context, DeviceProfile deviceProfile,
+                RectF startRect, RectF targetRect) {
+            super(context, deviceProfile, startRect, targetRect);
+            tracking = TRACKING_CENTER;
+            stiffnessX = 120f;
+            stiffnessY = 105f;
+            rectStiffness = 130f;
+            dampingX = 0.95f;
+            dampingY = 0.92f;
+            rectDamping = 1f;
         }
     }
 
