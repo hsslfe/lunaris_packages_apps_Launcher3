@@ -15,7 +15,6 @@ import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.views.ActivityContext;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -144,10 +143,6 @@ public class AppLibrarySearchAdapter extends RecyclerView.Adapter<RecyclerView.V
             avh.mIcon.setText("");
             avh.mTitle.setText(app.title);
 
-            if (avh.mSubtitle != null) {
-                avh.mSubtitle.setVisibility(View.GONE);
-            }
-
             View.OnClickListener clickListener = v -> {
                 if (mItemClickListener != null) {
                     mItemClickListener.onSearchItemClick(avh.mIcon, app);
@@ -173,6 +168,18 @@ public class AppLibrarySearchAdapter extends RecyclerView.Adapter<RecyclerView.V
     }
 
     @Override
+    public void onViewRecycled(@NonNull RecyclerView.ViewHolder holder) {
+        if (holder instanceof AppViewHolder app) {
+            ((AppLibraryIconView) app.mIcon).clearAppIcon();
+            app.itemView.setTag(null);
+            app.itemView.setOnClickListener(null);
+            app.itemView.setOnLongClickListener(null);
+            app.mTitle.setText("");
+        }
+        super.onViewRecycled(holder);
+    }
+
+    @Override
     public int getItemCount() {
         return mItems.size();
     }
@@ -189,13 +196,11 @@ public class AppLibrarySearchAdapter extends RecyclerView.Adapter<RecyclerView.V
     static class AppViewHolder extends RecyclerView.ViewHolder {
         final BubbleTextView mIcon;
         final TextView mTitle;
-        final TextView mSubtitle;
 
         AppViewHolder(View view) {
             super(view);
             mIcon = view.findViewById(R.id.app_icon);
             mTitle = view.findViewById(R.id.app_title);
-            mSubtitle = view.findViewById(R.id.app_subtitle);
         }
     }
 }

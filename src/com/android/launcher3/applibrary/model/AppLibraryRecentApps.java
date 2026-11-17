@@ -58,18 +58,23 @@ final class AppLibraryRecentApps {
                 // Usage access can be unavailable for a profile. Leave the recent row empty.
             }
         }
-        List<AppInfo> ranked = new ArrayList<>(apps);
-        ranked.sort(
-                (a, b) ->
-                        Long.compare(
-                                lastUsed.getOrDefault(PackageUserKey.fromItemInfo(b), 0L),
-                                lastUsed.getOrDefault(PackageUserKey.fromItemInfo(a), 0L)));
+        if (lastUsed.isEmpty()) return List.of();
+        // Only four results are needed: avoid sorting every app and allocating keys in a
+        // comparator.
         Set<PackageUserKey> included = new HashSet<>();
-        List<AppInfo> result = new ArrayList<>();
-        for (AppInfo app : ranked) {
-            if (!lastUsed.containsKey(PackageUserKey.fromItemInfo(app))) continue;
-            if (included.add(PackageUserKey.fromItemInfo(app))) result.add(app);
-            if (result.size() == 4) break;
+        List<AppInfo> result = new ArrayList<>(4);
+        long[] times = new long[4];
+        for (AppInfo app : apps) {
+            PackageUserKey key = PackageUserKey.fromItemInfo(app);
+            Long lastTime = lastUsed.get(key);
+            if (lastTime == null || !included.add(key)) continue;
+            int position = 0;
+            while (position < result.size() && times[position] >= lastTime) position++;
+            if (position >= 4) continue;
+            result.add(position, app);
+            if (result.size() > 4) result.remove(4);
+            for (int i = result.size() - 1; i > position; i--) times[i] = times[i - 1];
+            times[position] = lastTime;
         }
         return List.copyOf(result);
     }

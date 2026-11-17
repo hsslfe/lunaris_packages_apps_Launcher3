@@ -24,7 +24,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.ArrayDeque;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -99,15 +101,38 @@ public class AppLibraryRecentAppsTest {
     }
 
     @Test
+    public void recentSelection_isLimitedToFour_andTiesKeepInputOrder() {
+        UsageStatsManager usage = usageFor(mPersonal);
+        when(usage.queryUsageStats(anyInt(), anyLong(), anyLong()))
+                .thenReturn(
+                        List.of(
+                                stat("a", 500),
+                                stat("b", 500),
+                                stat("c", 400),
+                                stat("d", 300),
+                                stat("e", 200)));
+        AppInfo a = app("a", "Main", mPersonal);
+        AppInfo b = app("b", "Main", mPersonal);
+        AppInfo c = app("c", "Main", mPersonal);
+        AppInfo d = app("d", "Main", mPersonal);
+        AppInfo e = app("e", "Main", mPersonal);
+        assertEquals(
+                List.of(a, b, c, d), AppLibraryRecentApps.query(mContext, List.of(a, b, c, d, e)));
+    }
+
+    @Test
     public void usageCache_isWarmedWhenAppsArrive_beforeLibraryIsOpened() {
         when(mContext.getApplicationContext()).thenReturn(mContext);
         AllAppsStore store = mock(AllAppsStore.class);
         when(store.getApps()).thenReturn(new AppInfo[0]);
-        RecordingModel model = new RecordingModel(mContext, store);
+        ArrayDeque<Runnable> background = new ArrayDeque<>();
+        RecordingModel model = new RecordingModel(mContext, store, background::add);
         try {
             assertEquals(0, model.refreshRequests);
             when(store.getApps()).thenReturn(new AppInfo[] {app("camera", "Main", mPersonal)});
             model.onAppsUpdated();
+            assertEquals(0, model.refreshRequests);
+            while (!background.isEmpty()) background.remove().run();
             assertEquals(1, model.refreshRequests);
         } finally {
             model.destroy();
@@ -118,8 +143,8 @@ public class AppLibraryRecentAppsTest {
     private static class RecordingModel extends AppLibraryModel {
         int refreshRequests;
 
-        RecordingModel(Context context, AllAppsStore store) {
-            super(context, store);
+        RecordingModel(Context context, AllAppsStore store, Executor background) {
+            super(context, store, true, background, Runnable::run);
         }
 
         @Override

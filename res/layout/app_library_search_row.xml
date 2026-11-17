@@ -35,12 +35,6 @@
             android:singleLine="true"
             android:ellipsize="end" />
 
-        <TextView
-            android:id="@+id/app_subtitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:visibility="gone" />
-
         <View
             android:id="@+id/app_divider"
             android:layout_width="match_parent"

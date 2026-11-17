@@ -5,9 +5,13 @@ import static com.android.launcher3.icons.BitmapInfo.FLAG_THEMED;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import android.content.ComponentName;
+import android.content.Intent;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.view.ContextThemeWrapper;
@@ -24,14 +28,19 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
+import com.android.launcher3.applibrary.model.AppCategory;
+import com.android.launcher3.applibrary.model.AppCategoryGroup;
+import com.android.launcher3.icons.BitmapInfo;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.util.SandboxApplication;
-import com.android.launcher3.util.Themes;
 import com.android.launcher3.util.TestActivityContext;
+import com.android.launcher3.util.Themes;
 
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import java.util.List;
 
 @SmallTest
 @UiThreadTest
@@ -187,6 +196,48 @@ public class AppLibraryAppearanceTest {
     }
 
     @Test
+    public void recyclingIcon_releasesItsAppAndDrawableReferences() {
+        AppLibraryIconView icon =
+                (AppLibraryIconView)
+                        LayoutInflater.from(mContext)
+                                .inflate(
+                                        R.layout.app_library_icon,
+                                        new FrameLayout(mContext),
+                                        false);
+        AppInfo app = new AppInfo();
+        app.title = "Camera";
+        app.componentName = new ComponentName("test.camera", "test.camera.Main");
+        app.intent = new Intent().setComponent(app.componentName);
+        app.bitmap = BitmapInfo.fromBitmap(Bitmap.createBitmap(48, 48, Bitmap.Config.ARGB_8888));
+        icon.applyFromApplicationInfo(app);
+        assertNotNull(icon.getIcon());
+        icon.clearAppIcon();
+        assertNull(icon.getTag());
+        assertNull(icon.getIcon());
+        for (android.graphics.drawable.Drawable drawable : icon.getCompoundDrawablesRelative()) {
+            assertNull(drawable);
+        }
+    }
+
+    @Test
+    public void hidingExpandedCategory_releasesItsAppList() {
+        AppCategoryExpandedSheet sheet =
+                (AppCategoryExpandedSheet)
+                        LayoutInflater.from(mContext)
+                                .inflate(
+                                        R.layout.app_library_expanded_sheet,
+                                        new FrameLayout(mContext),
+                                        false);
+        androidx.recyclerview.widget.RecyclerView grid =
+                sheet.findViewById(R.id.expanded_sheet_grid);
+        sheet.show(new AppCategoryGroup(AppCategory.SOCIAL, List.of(new AppInfo())), null);
+        assertEquals(1, grid.getAdapter().getItemCount());
+        sheet.hide(false);
+        assertEquals(0, grid.getAdapter().getItemCount());
+        assertFalse(sheet.isOpen());
+    }
+
+    @Test
     public void darkMode_expandedCategory_keepsExistingSurface() {
         Configuration config = new Configuration(mContext.getResources().getConfiguration());
         config.uiMode =
@@ -197,14 +248,12 @@ public class AppLibraryAppearanceTest {
         assertTrue(Utilities.isDarkTheme(dark));
         View sheet =
                 LayoutInflater.from(dark)
-                        .inflate(
-                                R.layout.app_library_expanded_sheet,
-                                new FrameLayout(dark),
-                                false);
+                        .inflate(R.layout.app_library_expanded_sheet, new FrameLayout(dark), false);
         GradientDrawable background =
                 (GradientDrawable) sheet.findViewById(R.id.expanded_sheet_card).getBackground();
-        int expected = ColorUtils.blendARGB(
-                Themes.getAttrColor(dark, R.attr.allAppsSurfaceLow), Color.BLACK, .40f);
+        int expected =
+                ColorUtils.blendARGB(
+                        Themes.getAttrColor(dark, R.attr.allAppsSurfaceLow), Color.BLACK, .40f);
         assertEquals(
                 ColorUtils.setAlphaComponent(expected, 217),
                 background.getColor().getDefaultColor());

@@ -93,6 +93,7 @@ public class AppLibraryAdapter extends RecyclerView.Adapter<AppLibraryAdapter.Vi
                                             .getIconSizePx()
                                     + Utilities.dpToPx(12, row.getContext());
             while (row.getChildCount() > mRecentApps.size()) {
+                ((AppLibraryIconView) row.getChildAt(row.getChildCount() - 1)).clearAppIcon();
                 row.removeViewAt(row.getChildCount() - 1);
             }
             for (int i = 0; i < mRecentApps.size(); i++) {
@@ -107,6 +108,7 @@ public class AppLibraryAdapter extends RecyclerView.Adapter<AppLibraryAdapter.Vi
                                             .inflate(R.layout.app_library_icon, row, false);
                     row.addView(icon);
                 }
+                icon.reset();
                 icon.applyFromApplicationInfo(mRecentApps.get(i));
                 icon.setOnClickListener(mActivityContext.getItemOnClickListener());
                 icon.setLayoutParams(new LinearLayout.LayoutParams(0, height, 1));
@@ -117,6 +119,18 @@ public class AppLibraryAdapter extends RecyclerView.Adapter<AppLibraryAdapter.Vi
             card.setOnCategoryExpandListener(mExpandListener);
             card.bindGroup(group, mActivityContext);
         }
+    }
+
+    @Override
+    public void onViewRecycled(@NonNull ViewHolder holder) {
+        if (holder.itemView instanceof AppCategoryCardView card) {
+            card.clearAppIcons();
+        } else if (holder.itemView instanceof LinearLayout row) {
+            for (int i = 0; i < row.getChildCount(); i++) {
+                ((AppLibraryIconView) row.getChildAt(i)).clearAppIcon();
+            }
+        }
+        super.onViewRecycled(holder);
     }
 
     @Override

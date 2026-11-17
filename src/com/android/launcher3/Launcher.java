@@ -1426,8 +1426,9 @@ public class Launcher extends StatefulActivity<LauncherState>
         mAllAppsController.setupViews(mScrimView, mAppsView);
         mAppLibraryView = findViewById(R.id.app_library_view);
         if (mAppLibraryView != null) {
-            mAppLibraryTransitionController.setupViews(mScrimView, mAppLibraryView);
-            mAppLibraryModel = new AppLibraryModel(this, mAppsView.getAppsStore());
+            mAppLibraryTransitionController.setupViews(mAppLibraryView);
+            mAppLibraryModel = new AppLibraryModel(this, mAppsView.getAppsStore(),
+                    LauncherPrefs.APP_LIBRARY_ENABLED.get(this));
             mAppLibraryView.setModel(mAppLibraryModel);
         }
 

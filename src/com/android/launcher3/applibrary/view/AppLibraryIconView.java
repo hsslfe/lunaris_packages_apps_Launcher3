@@ -24,6 +24,16 @@ public class AppLibraryIconView extends BubbleTextView {
         return !isDisplaySearchResult() && LauncherPrefs.APP_LIBRARY_SHOW_LABELS.get(getContext());
     }
 
+    void clearAppIcon() {
+        reset();
+        setIcon(null);
+        setCompoundDrawablesRelative(null, null, null, null);
+        setText("");
+        setContentDescription(null);
+        setOnClickListener(null);
+        setOnLongClickListener(null);
+    }
+
     @Override
     protected boolean shouldUseTheme() {
         // Read the current preference when rebinding, rather than the constructor's cached value.

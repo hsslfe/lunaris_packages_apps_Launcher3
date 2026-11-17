@@ -18,7 +18,6 @@ import com.android.launcher3.anim.PendingAnimation;
 import com.android.launcher3.applibrary.view.AppLibraryContainerView;
 import com.android.launcher3.statemanager.StateManager.StateHandler;
 import com.android.launcher3.states.StateAnimationConfig;
-import com.android.launcher3.views.ScrimView;
 
 public class AppLibraryTransitionController
         implements StateHandler<LauncherState>, OnDeviceProfileChangeListener {
@@ -38,7 +37,6 @@ public class AppLibraryTransitionController
 
     private final Launcher mLauncher;
     private AppLibraryContainerView mAppLibraryView;
-    private ScrimView mScrimView;
     private float mProgress = 1f;
 
     public AppLibraryTransitionController(Launcher launcher) {
@@ -46,8 +44,7 @@ public class AppLibraryTransitionController
         mLauncher.addOnDeviceProfileChangeListener(this);
     }
 
-    public void setupViews(ScrimView scrimView, AppLibraryContainerView appLibraryView) {
-        mScrimView = scrimView;
+    public void setupViews(AppLibraryContainerView appLibraryView) {
         mAppLibraryView = appLibraryView;
     }
 
