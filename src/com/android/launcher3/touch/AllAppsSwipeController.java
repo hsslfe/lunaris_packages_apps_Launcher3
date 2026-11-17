@@ -26,8 +26,6 @@ import static com.android.app.animation.Interpolators.LINEAR;
 import static com.android.launcher3.LauncherState.ALL_APPS;
 import static com.android.launcher3.LauncherState.APP_LIBRARY;
 import static com.android.launcher3.LauncherState.NORMAL;
-
-import com.android.launcher3.LauncherPrefs;
 import static com.android.launcher3.states.StateAnimationConfig.ANIM_ALL_APPS_FADE;
 import static com.android.launcher3.states.StateAnimationConfig.ANIM_DEPTH;
 import static com.android.launcher3.states.StateAnimationConfig.ANIM_HOTSEAT_FADE;
@@ -45,8 +43,11 @@ import com.android.app.animation.Interpolators;
 import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.Flags;
 import com.android.launcher3.Launcher;
+import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.allapps.AppDrawerStyle;
+import com.android.launcher3.applibrary.AppLibraryTouchController;
+import com.android.launcher3.applibrary.AppLibraryTransitionController;
 import com.android.launcher3.states.StateAnimationConfig;
 
 /**
@@ -149,6 +150,10 @@ public class AllAppsSwipeController extends AbstractStateChangeTouchController {
 
     @Override
     protected boolean canInterceptTouch(MotionEvent ev) {
+        if (mLauncher.isInState(NORMAL)
+                && LauncherPrefs.APP_LIBRARY_ENABLED.get(mLauncher)
+                && LauncherPrefs.APP_LIBRARY_HIDE_APP_DRAWER.get(mLauncher)
+                && AppLibraryTouchController.isTouchInNavigationRegion(mLauncher, ev)) return false;
         if (AppDrawerStyle.isIos(AppDrawerStyle.get(mLauncher))) {
             return false;
         }
@@ -194,6 +199,8 @@ public class AllAppsSwipeController extends AbstractStateChangeTouchController {
         float startVerticalShift = mFromState.getVerticalProgress(mLauncher) * range;
         float endVerticalShift = mToState.getVerticalProgress(mLauncher) * range;
         float totalShift = endVerticalShift - startVerticalShift;
+        // Home and the horizontal library have equal vertical positions; avoid a zero range.
+        if (mFromState == NORMAL && mToState == APP_LIBRARY) totalShift = -range;
         return 1 / totalShift;
     }
 
@@ -202,6 +209,9 @@ public class AllAppsSwipeController extends AbstractStateChangeTouchController {
             LauncherState toState) {
         StateAnimationConfig config = super.getConfigForStates(fromState, toState);
         config.animProps |= StateAnimationConfig.USER_CONTROLLED;
+        if (fromState == APP_LIBRARY || toState == APP_LIBRARY) {
+            AppLibraryTransitionController.applySwipeConfig(config);
+        }
         if (fromState == NORMAL && toState == ALL_APPS) {
             applyNormalToAllAppsAnimConfig(mLauncher, config);
         } else if (fromState == ALL_APPS && toState == NORMAL) {

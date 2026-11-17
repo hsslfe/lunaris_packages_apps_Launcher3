@@ -17,6 +17,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.view.OneShotPreDrawListener;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -24,6 +25,8 @@ import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Insettable;
 import com.android.launcher3.Launcher;
+import com.android.launcher3.LauncherPrefs;
+import com.android.launcher3.Utilities;
 import com.android.launcher3.R;
 import com.android.launcher3.applibrary.model.AppCategoryGroup;
 import com.android.launcher3.model.data.AppInfo;
@@ -54,6 +57,8 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
     private float mStartScaleX = 0.85f;
     private float mStartScaleY = 0.85f;
     private boolean mIsAnimating = false;
+    private int mAnimationId;
+    private OneShotPreDrawListener mPendingOpen;
 
     public AppCategoryExpandedSheet(Context context) {
         this(context, null);
@@ -103,17 +108,14 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
     @Override
     public void setInsets(Rect insets) {
         mInsets.set(insets);
+        requestLayout();
     }
 
     private int calculateCellHeight() {
-        if (mActivityContext instanceof Launcher) {
-            DeviceProfile dp = ((Launcher) mActivityContext).getDeviceProfile();
-            if (dp != null && dp.getAllAppsProfile() != null && dp.getAllAppsProfile().getCellHeightPx() > 0) {
-                return dp.getAllAppsProfile().getCellHeightPx();
-            }
-        }
-        float density = getResources().getDisplayMetrics().density;
-        return (int) (104 * density);
+        DeviceProfile profile = mActivityContext.getDeviceProfile();
+        return LauncherPrefs.APP_LIBRARY_SHOW_LABELS.get(getContext())
+                ? profile.getAllAppsProfile().getCellHeightPx()
+                : profile.getAllAppsProfile().getIconSizePx() + Utilities.dpToPx(16, getContext());
     }
 
     @Override
@@ -123,7 +125,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
 
         float density = getResources().getDisplayMetrics().density;
         int maxCardWidth = Math.min(widthSize - (int) (32 * density), (int) (560 * density));
-        int maxSafeCardHeight = heightSize - (int) (48 * density);
+        int maxSafeCardHeight = heightSize - mInsets.top - mInsets.bottom - (int) (48 * density);
 
         int spanCount = calculateAdaptiveSpanCount();
         int itemCount = mAdapter != null ? mAdapter.getItemCount() : 0;
@@ -151,7 +153,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
             int cardWidth = mCardView.getMeasuredWidth();
             int cardHeight = mCardView.getMeasuredHeight();
             int cardLeft = (width - cardWidth) / 2;
-            int cardTop = (height - cardHeight) / 2;
+            int cardTop = mInsets.top + (height - mInsets.top - mInsets.bottom - cardHeight) / 2;
             mCardView.layout(cardLeft, cardTop, cardLeft + cardWidth, cardTop + cardHeight);
         }
     }
@@ -174,6 +176,8 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
     }
 
     public void show(@NonNull AppCategoryGroup group, @Nullable Rect sourceBounds) {
+        cancelAnimations();
+        final int animationId = mAnimationId;
         mSourceBounds = sourceBounds;
         if (mTitleView != null) {
             mTitleView.setText(group.getTitleRes());
@@ -195,7 +199,9 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         setAlpha(0f);
         mIsAnimating = true;
 
-        post(() -> {
+        mPendingOpen = OneShotPreDrawListener.add(this, () -> {
+            mPendingOpen = null;
+            if (animationId != mAnimationId || getVisibility() != VISIBLE) return;
             if (mCardView != null) {
                 int cardWidth = mCardView.getWidth();
                 int cardHeight = mCardView.getHeight();
@@ -237,7 +243,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
                         .setListener(new AnimatorListenerAdapter() {
                             @Override
                             public void onAnimationEnd(Animator animation) {
-                                mIsAnimating = false;
+                                if (animationId == mAnimationId) mIsAnimating = false;
                             }
                         })
                         .start();
@@ -257,7 +263,10 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
             return;
         }
 
+        cancelAnimations();
+        final int animationId = mAnimationId;
         if (!animate) {
+            mIsAnimating = false;
             setVisibility(View.GONE);
             if (mDismissListener != null) {
                 mDismissListener.onDismissFinished();
@@ -290,6 +299,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
                 .setListener(new AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationEnd(Animator animation) {
+                        if (animationId != mAnimationId) return;
                         setVisibility(View.GONE);
                         mIsAnimating = false;
                         if (mDismissListener != null) {
@@ -298,6 +308,22 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
                     }
                 })
                 .start();
+    }
+
+    private void cancelAnimations() {
+        ++mAnimationId;
+        if (mPendingOpen != null) {
+            mPendingOpen.removeListener();
+            mPendingOpen = null;
+        }
+        animate().setListener(null).cancel();
+        if (mCardView != null) mCardView.animate().setListener(null).cancel();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        hide(false);
+        super.onDetachedFromWindow();
     }
 
     public boolean isOpen() {
@@ -330,7 +356,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             LayoutInflater inflater = LayoutInflater.from(parent.getContext());
             BubbleTextView icon = (BubbleTextView) inflater.inflate(
-                    R.layout.all_apps_icon, parent, false);
+                    R.layout.app_library_icon, parent, false);
             int cellHeight = calculateCellHeight();
             RecyclerView.LayoutParams lp = new RecyclerView.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -343,11 +369,12 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             AppInfo app = mApps.get(position);
+            holder.mIcon.getLayoutParams().height = calculateCellHeight();
             holder.mIcon.reset();
             holder.mIcon.applyFromApplicationInfo(app);
             holder.mIcon.setOnClickListener(v -> {
-                hide(false);
                 mActivityContext.getItemOnClickListener().onClick(v);
+                hide(false);
             });
             holder.mIcon.setOnLongClickListener(v -> {
                 if (mActivityContext instanceof Launcher) {

@@ -6,7 +6,9 @@ import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.AttributeSet;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.ImageButton;
@@ -22,6 +24,8 @@ public class AppLibrarySearchBar extends LinearLayout {
     public interface OnSearchListener {
         void onSearchQueryChanged(String query);
         void onSearchStateChanged(boolean isSearching);
+
+        void onSearchSubmit();
     }
 
     private EditText mSearchInput;
@@ -62,6 +66,24 @@ public class AppLibrarySearchBar extends LinearLayout {
 
         if (mSearchInput != null) {
             mSearchInput.setGravity(Gravity.CENTER);
+            mSearchInput.setOnEditorActionListener(
+                    (view, action, event) -> {
+                        boolean enter =
+                                event != null
+                                        && (event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                                                || event.getKeyCode()
+                                                        == KeyEvent.KEYCODE_NUMPAD_ENTER);
+                        if (!enter
+                                && action != EditorInfo.IME_ACTION_SEARCH
+                                && action != EditorInfo.IME_ACTION_GO
+                                && action != EditorInfo.IME_ACTION_DONE) return false;
+                        if ((event == null
+                                        || (event.getAction() == KeyEvent.ACTION_UP
+                                                && !event.isCanceled()))
+                                && mIsSearching
+                                && mListener != null) mListener.onSearchSubmit();
+                        return true;
+                    });
             mSearchInput.addTextChangedListener(new TextWatcher() {
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {}

@@ -3,10 +3,8 @@ package com.android.launcher3.applibrary.model;
 import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.os.SystemClock;
 import android.text.TextUtils;
-
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 import com.android.launcher3.allapps.AllAppsStore;
 import com.android.launcher3.model.data.AppInfo;
@@ -27,6 +25,8 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
     public interface AppLibraryModelListener {
         void onCategoriesUpdated(List<AppCategoryGroup> groups);
         void onAllAppsUpdated(List<AppInfo> allApps);
+
+        default void onRecentAppsUpdated(List<AppInfo> apps) {}
     }
 
     private static final Comparator<AppInfo> APP_NAME_COMPARATOR = (a, b) -> {
@@ -45,6 +45,10 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
     private final List<AppLibraryModelListener> mListeners = new CopyOnWriteArrayList<>();
     private final Map<String, Long> mInstallTimeCache = new ConcurrentHashMap<>();
 
+    private List<AppInfo> mRecentApps = Collections.emptyList();
+    private int mRecentGeneration;
+    private long mLastRecentRefresh;
+    private boolean mDestroyed;
     private List<AppInfo> mAllAppsList = Collections.emptyList();
     private List<AppCategoryGroup> mCategoryGroups = Collections.emptyList();
 
@@ -62,6 +66,7 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
             mListeners.add(listener);
             listener.onCategoriesUpdated(mCategoryGroups);
             listener.onAllAppsUpdated(mAllAppsList);
+            listener.onRecentAppsUpdated(mRecentApps);
         }
     }
 
@@ -72,6 +77,8 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
     }
 
     public void destroy() {
+        mDestroyed = true;
+        ++mRecentGeneration;
         if (mAppsStore != null) {
             mAppsStore.removeUpdateListener(this);
         }
@@ -81,6 +88,8 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
 
     @Override
     public void onAppsUpdated() {
+        ++mRecentGeneration;
+        mLastRecentRefresh = 0;
         AppCategoryEngine.clearCache();
         mInstallTimeCache.clear();
         rebuildCategories();
@@ -135,6 +144,7 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
         if (rawApps == null || rawApps.length == 0) {
             mAllAppsList = Collections.emptyList();
             mCategoryGroups = Collections.emptyList();
+            mRecentApps = Collections.emptyList();
             notifyListeners();
             return;
         }
@@ -190,13 +200,38 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
         notifyListeners();
     }
 
+    /** Usage queries run off the UI thread and are coalesced across rapid repeated openings. */
+    public void refreshRecentApps() {
+        long now = SystemClock.elapsedRealtime();
+        if (mDestroyed
+                || mAllAppsList.isEmpty()
+                || (mLastRecentRefresh != 0 && now - mLastRecentRefresh < 5000)) return;
+        mLastRecentRefresh = now;
+        int generation = ++mRecentGeneration;
+        List<AppInfo> snapshot = List.copyOf(mAllAppsList);
+        Executors.ORDERED_BG_EXECUTOR.execute(
+                () -> {
+                    List<AppInfo> recent = AppLibraryRecentApps.query(mContext, snapshot);
+                    Executors.MAIN_EXECUTOR.execute(
+                            () -> {
+                                if (mDestroyed || generation != mRecentGeneration) return;
+                                mRecentApps = recent;
+                                for (AppLibraryModelListener listener : mListeners)
+                                    listener.onRecentAppsUpdated(recent);
+                            });
+                });
+    }
+
     private void notifyListeners() {
-        Executors.MAIN_EXECUTOR.execute(() -> {
-            for (AppLibraryModelListener listener : mListeners) {
-                listener.onCategoriesUpdated(mCategoryGroups);
-                listener.onAllAppsUpdated(mAllAppsList);
-            }
-        });
+        Executors.MAIN_EXECUTOR.execute(
+                () -> {
+                    if (mDestroyed) return;
+                    for (AppLibraryModelListener listener : mListeners) {
+                        listener.onCategoriesUpdated(mCategoryGroups);
+                        listener.onAllAppsUpdated(mAllAppsList);
+                        listener.onRecentAppsUpdated(mRecentApps);
+                    }
+                });
     }
 
     public List<AppCategoryGroup> getCategoryGroups() {
