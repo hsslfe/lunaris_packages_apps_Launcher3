@@ -33,6 +33,7 @@ import com.android.launcher3.Utilities;
 import com.android.launcher3.R;
 import com.android.launcher3.applibrary.model.AppCategoryGroup;
 import com.android.launcher3.model.data.AppInfo;
+import com.android.launcher3.util.SpringEdgeEffectFactory;
 import com.android.launcher3.util.Themes;
 import com.android.launcher3.views.ActivityContext;
 
@@ -105,6 +106,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
             mGridView.setLayoutManager(new GridLayoutManager(getContext(), spanCount));
             mAdapter = new ExpandedGridAdapter(mActivityContext);
             mGridView.setAdapter(mAdapter);
+            mGridView.setEdgeEffectFactory(new SpringEdgeEffectFactory());
             mGridView.setNestedScrollingEnabled(true);
         }
     }
