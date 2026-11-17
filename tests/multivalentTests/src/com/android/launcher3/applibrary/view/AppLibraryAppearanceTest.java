@@ -26,6 +26,7 @@ import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.util.SandboxApplication;
+import com.android.launcher3.util.Themes;
 import com.android.launcher3.util.TestActivityContext;
 
 import org.junit.Rule;
@@ -156,7 +157,7 @@ public class AppLibraryAppearanceTest {
     }
 
     @Test
-    public void lightMode_keepsLibraryTextWhite_andExpandedSurfaceDark() {
+    public void lightMode_keepsLibraryTextWhite_andMatchesCategorySurface() {
         Configuration config = new Configuration(mContext.getResources().getConfiguration());
         config.uiMode =
                 (config.uiMode & ~Configuration.UI_MODE_NIGHT_MASK)
@@ -176,26 +177,36 @@ public class AppLibraryAppearanceTest {
                 }) {
             assertEquals(Color.WHITE, text.getCurrentTextColor());
         }
-        GradientDrawable background =
+        GradientDrawable categoryBackground =
+                (GradientDrawable) card.findViewById(R.id.category_card_content).getBackground();
+        GradientDrawable expandedBackground =
                 (GradientDrawable) sheet.findViewById(R.id.expanded_sheet_card).getBackground();
-        int surface = background.getColor().getDefaultColor();
-        assertEquals(217, Color.alpha(surface));
-        assertTrue(
-                ColorUtils.calculateContrast(
-                                Color.WHITE, ColorUtils.setAlphaComponent(surface, 255))
-                        >= 7);
+        assertEquals(
+                categoryBackground.getColor().getDefaultColor(),
+                expandedBackground.getColor().getDefaultColor());
     }
 
     @Test
-    public void expandedCategory_has85PercentOpaqueSurface() {
+    public void darkMode_expandedCategory_keepsExistingSurface() {
+        Configuration config = new Configuration(mContext.getResources().getConfiguration());
+        config.uiMode =
+                (config.uiMode & ~Configuration.UI_MODE_NIGHT_MASK)
+                        | Configuration.UI_MODE_NIGHT_YES;
+        ContextThemeWrapper dark = new ContextThemeWrapper(mContext, R.style.LauncherTheme);
+        dark.applyOverrideConfiguration(config);
+        assertTrue(Utilities.isDarkTheme(dark));
         View sheet =
-                LayoutInflater.from(mContext)
+                LayoutInflater.from(dark)
                         .inflate(
                                 R.layout.app_library_expanded_sheet,
-                                new FrameLayout(mContext),
+                                new FrameLayout(dark),
                                 false);
         GradientDrawable background =
                 (GradientDrawable) sheet.findViewById(R.id.expanded_sheet_card).getBackground();
-        assertEquals(217, Color.alpha(background.getColor().getDefaultColor()));
+        int expected = ColorUtils.blendARGB(
+                Themes.getAttrColor(dark, R.attr.allAppsSurfaceLow), Color.BLACK, .40f);
+        assertEquals(
+                ColorUtils.setAlphaComponent(expected, 217),
+                background.getColor().getDefaultColor());
     }
 }
