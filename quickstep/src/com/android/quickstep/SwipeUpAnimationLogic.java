@@ -199,6 +199,11 @@ public abstract class SwipeUpAnimationLogic implements
             return false;
         }
 
+        /** Whether the closing activity belongs to the dock search bar. */
+        public boolean isQsb() {
+            return false;
+        }
+
         public @NonNull RectF getWindowTargetRect() {
             PagedOrientationHandler orientationHandler = getOrientationHandler();
             DeviceProfile dp = mDp;
@@ -400,7 +405,10 @@ public abstract class SwipeUpAnimationLogic implements
                 && homeAnimationFactory.isInHotseat();
         boolean cos = CosAppAnimation.isEnabled(mContext)
                 && homeAnimationFactory.shouldUseCosCloseAnimation();
-        RectFSpringAnim anim = cos
+        RectFSpringAnim anim = homeAnimationFactory.isQsb()
+                ? new RectFSpringAnim(new RectFSpringAnim.QsbSpringConfig(
+                        mContext, mDp, startRect, targetRect))
+                : cos
                 ? new RectFSpringAnim(new CosSpringConfig(mContext, mDp, startRect, targetRect))
                 : homeAnimationFactory.shouldUseIconCloseAnimation()
                 ? new RectFSpringAnim(new IconSpringConfig(mContext, mDp, startRect, targetRect))

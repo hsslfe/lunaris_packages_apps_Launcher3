@@ -2099,7 +2099,10 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         final boolean useCosSpring = mCosAppAnimations && !isQsbTarget
                 && (floatingIconView != null || islandTarget != null)
                 && !isTransluscent;
-        RectFSpringAnim anim = new RectFSpringAnim(useCosSpring
+        RectFSpringAnim anim = new RectFSpringAnim(isQsbTarget
+                ? new RectFSpringAnim.QsbSpringConfig(mLauncher, mDeviceProfile,
+                        closingWindowStartRectF, targetRect)
+                : useCosSpring
                 ? new RectFSpringAnim.CosSpringConfig(mLauncher, mDeviceProfile,
                         closingWindowStartRectF, targetRect)
                 : useTaskbarHotseatParams
@@ -2132,18 +2135,26 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
             // We want the window alpha to be 0 once this threshold is met, so that the
             // FloatingIconView can be seen morphing into the icon shape.
-            final float windowAlphaThreshold = useCosSpring ? 0f : useIconSpring
+            final float windowAlphaThreshold = useCosSpring ? 0f : isQsbTarget ? 0.5f
+                    : useIconSpring
                     ? OosAppCloseAnimation.SHAPE_PROGRESS_START : 1f - SHAPE_PROGRESS_DURATION;
 
             final float customEndRadius =
                     (launcherView instanceof BubbleTextView btv && btv.isMultiSpan())
-                            ? btv.getIconBackgroundCornerRadius() : -1f;
+                            ? btv.getIconBackgroundCornerRadius()
+                            : isQsbTarget
+                            ? Math.min(targetRect.width(), targetRect.height()) / 2f
+                            : -1f;
 
             RectFSpringAnim.OnUpdateListener runner = new SpringAnimRunner(targets, targetRect,
                     closingWindowStartRect, closingWindowOriginalRect, startWindowCornerRadius) {
                 @Override
                 protected float getWindowAlpha(float progress) {
                     if (useCosSpring) return 1f - anim.getCosFadeProgress();
+                    if (isQsbTarget) {
+                        float t = Math.max(0f, Math.min(1f, (progress - 0.3f) / 0.65f));
+                        return 1f - t * t * (3f - 2f * t);
+                    }
                     return useIconSpring ? OosAppCloseAnimation.getWindowAlpha(progress)
                             : super.getWindowAlpha(progress);
                 }
@@ -2506,15 +2517,28 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             anim.play(getFallbackClosingWindowAnimators(appTargets));
         }
 
+        final boolean[] qsbSquished = {false};
+        final Runnable playQsbSquish = () -> {
+            if (qsbSquished[0]) return;
+            qsbSquished[0] = true;
+            if (launcherView != null && mLauncher.getHotseat() != null
+                    && mLauncher.getHotseat().isQsbView(launcherView)) {
+                mLauncher.getHotseat().playQsbSquishAnimation();
+            }
+        };
         AnimatorListenerAdapter endListener = new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
                 super.onAnimationEnd(animation);
                 AccessibilityManagerCompat.sendTestProtocolEventToTest(
                         mLauncher, WALLPAPER_OPEN_ANIMATION_FINISHED_MESSAGE);
+                playQsbSquish.run();
             }
         };
         if (rectFSpringAnim != null) {
+            rectFSpringAnim.addOnUpdateListener((rect, progress) -> {
+                if (progress >= 0.9f) playQsbSquish.run();
+            });
             rectFSpringAnim.addAnimatorListener(endListener);
         } else {
             anim.addListener(endListener);
