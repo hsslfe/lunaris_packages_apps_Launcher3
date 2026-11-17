@@ -5,6 +5,7 @@ import static com.android.app.animation.Interpolators.EMPHASIZED;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.content.Context;
+import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.drawable.GradientDrawable;
 import android.util.AttributeSet;
@@ -91,10 +92,12 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         setOnClickListener(v -> hide(true));
         if (mCardView != null) {
             mCardView.setOnClickListener(v -> {});
-            // Resolve the same theme color with a readable 95% opacity, independently of cards.
+            // Use a darker solid surface so background icons cannot bleed into the category.
             GradientDrawable background = (GradientDrawable) mCardView.getBackground().mutate();
-            background.setColor(ColorUtils.setAlphaComponent(
-                    Themes.getAttrColor(getContext(), R.attr.allAppsSurfaceLow), 242));
+            int surface = ColorUtils.setAlphaComponent(
+                    Themes.getAttrColor(getContext(), R.attr.allAppsSurfaceLow), 255);
+            background.setColor(ColorUtils.blendARGB(surface, Color.BLACK,
+                    Utilities.isDarkTheme(getContext()) ? .45f : .08f));
         }
 
         if (mGridView != null) {
