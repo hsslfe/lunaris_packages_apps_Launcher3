@@ -32,6 +32,7 @@ import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.R;
 import com.android.launcher3.applibrary.model.AppCategoryGroup;
+import com.android.launcher3.applibrary.model.AppCategory;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.util.SpringEdgeEffectFactory;
 import com.android.launcher3.util.Themes;
@@ -52,6 +53,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
     private TextView mTitleView;
     private RecyclerView mGridView;
     private ExpandedGridAdapter mAdapter;
+    private AppCategory mCategory;
     private final ActivityContext mActivityContext;
     private OnExpandedSheetDismissListener mDismissListener;
     private final Rect mInsets = new Rect();
@@ -106,6 +108,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
             mGridView.setLayoutManager(new GridLayoutManager(getContext(), spanCount));
             mAdapter = new ExpandedGridAdapter(mActivityContext);
             mGridView.setAdapter(mAdapter);
+            mGridView.setItemAnimator(null);
             mGridView.setEdgeEffectFactory(new SpringEdgeEffectFactory());
             mGridView.setNestedScrollingEnabled(true);
         }
@@ -171,6 +174,21 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         }
     }
 
+    public void refreshIcons() {
+        if (mAdapter != null) mAdapter.notifyDataSetChanged();
+    }
+
+    public void onCategoriesUpdated(List<AppCategoryGroup> groups) {
+        if (!isOpen()) return;
+        for (AppCategoryGroup group : groups) {
+            if (group.getCategory() == mCategory) {
+                mAdapter.setApps(group.getApps());
+                return;
+            }
+        }
+        hide(false);
+    }
+
     public void setOnExpandedSheetDismissListener(OnExpandedSheetDismissListener listener) {
         mDismissListener = listener;
     }
@@ -190,6 +208,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
 
     public void show(@NonNull AppCategoryGroup group, @Nullable Rect sourceBounds) {
         cancelAnimations();
+        mCategory = group.getCategory();
         final int animationId = mAnimationId;
         mSourceBounds = sourceBounds;
         if (mTitleView != null) {

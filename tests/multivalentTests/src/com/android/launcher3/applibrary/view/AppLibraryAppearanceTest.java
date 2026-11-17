@@ -1,5 +1,7 @@
 package com.android.launcher3.applibrary.view;
 
+import static com.android.launcher3.icons.BitmapInfo.FLAG_THEMED;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -18,6 +20,7 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
+import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.util.SandboxApplication;
 import com.android.launcher3.util.TestActivityContext;
 
@@ -110,6 +113,42 @@ public class AppLibraryAppearanceTest {
         } finally {
             library.reset();
         }
+    }
+
+    @Test
+    public void allLibraryIcons_followThemePreference_withoutReinflating() {
+        FrameLayout parent = new FrameLayout(mContext);
+        View card =
+                LayoutInflater.from(mContext)
+                        .inflate(R.layout.app_library_category_card, parent, false);
+        View row =
+                LayoutInflater.from(mContext)
+                        .inflate(R.layout.app_library_search_row, parent, false);
+        AppLibraryIconView icon =
+                (AppLibraryIconView)
+                        LayoutInflater.from(mContext)
+                                .inflate(R.layout.app_library_icon, parent, false);
+        AppInfo app = new AppInfo();
+        AppLibraryIconView[] icons = {
+            icon,
+            card.findViewById(R.id.card_slot_0),
+            card.findViewById(R.id.mini_icon_0),
+            card.findViewById(R.id.mini_icon_3),
+            row.findViewById(R.id.app_icon)
+        };
+        for (boolean themed : new boolean[] {false, true, false}) {
+            LauncherPrefs.get(mContext).put(LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION, themed);
+            for (AppLibraryIconView view : icons) {
+                assertEquals(
+                        themed ? FLAG_THEMED : 0,
+                        view.getIconCreationFlagsForInfo(app) & FLAG_THEMED);
+            }
+        }
+        LauncherPrefs.get(mContext).put(LauncherPrefs.APP_LIBRARY_SHOW_LABELS, true);
+        assertFalse(((AppLibraryIconView) row.findViewById(R.id.app_icon)).shouldShowLabel());
+        assertFalse(((AppLibraryIconView) card.findViewById(R.id.mini_icon_0)).shouldShowLabel());
+        assertTrue(icon.shouldShowLabel());
+        assertNotNull(row.findViewById(R.id.app_title));
     }
 
     @Test

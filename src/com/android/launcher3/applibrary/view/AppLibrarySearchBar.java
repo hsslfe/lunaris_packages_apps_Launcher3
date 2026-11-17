@@ -59,8 +59,9 @@ public class AppLibrarySearchBar extends LinearLayout {
             mSearchBox.setOnClickListener(v -> {
                 if (!mIsSearching) {
                     setSearching(true);
+                } else {
+                    showKeyboard();
                 }
-                showKeyboard();
             });
         }
 
@@ -111,8 +112,9 @@ public class AppLibrarySearchBar extends LinearLayout {
             mSearchInput.setOnClickListener(v -> {
                 if (!mIsSearching) {
                     setSearching(true);
+                } else {
+                    showKeyboard();
                 }
-                showKeyboard();
             });
         }
 
@@ -175,7 +177,6 @@ public class AppLibrarySearchBar extends LinearLayout {
                     Context.INPUT_METHOD_SERVICE);
             if (imm != null) {
                 imm.showSoftInput(mSearchInput, InputMethodManager.SHOW_IMPLICIT);
-                imm.showSoftInput(mSearchInput, 0);
             }
         }
     }

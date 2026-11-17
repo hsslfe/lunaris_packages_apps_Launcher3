@@ -1,6 +1,7 @@
 package com.android.launcher3.applibrary.view;
 
 import static com.android.app.animation.Interpolators.EMPHASIZED;
+import static com.android.app.animation.Interpolators.EMPHASIZED_DECELERATE;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -32,6 +33,7 @@ import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.applibrary.model.AppCategoryGroup;
 import com.android.launcher3.applibrary.model.AppLibraryModel;
+import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.util.SpringEdgeEffectFactory;
 import com.android.launcher3.views.ActivityContext;
@@ -43,9 +45,11 @@ public class AppLibraryContainerView extends FrameLayout
                 AppLibrarySearchBar.OnSearchListener,
                 AppCategoryCardView.OnCategoryExpandListener,
                 Insettable,
-                LauncherPrefChangeListener {
+                LauncherPrefChangeListener,
+                ThemeManager.ThemeChangeListener {
 
     private static final float CATEGORY_BLUR_RADIUS = 35f;
+    private static final int PULL_TO_SEARCH_DISTANCE_DP = 96;
 
     private View mAppLibraryContent;
     private AppLibrarySearchBar mSearchBar;
@@ -63,13 +67,12 @@ public class AppLibraryContainerView extends FrameLayout
     private ValueAnimator mBlurAnimator;
     private boolean mPendingRecentAppsBind;
     private boolean mShowLabels;
+    private boolean mTouchInProgress;
     private final int mTouchSlop;
 
     private float mDownX;
     private float mDownY;
     private boolean mPullToSearchEligible = false;
-    private boolean mKeyboardDismissedByScroll = false;
-    private boolean mPendingSwipeSearchKeyboard = false;
 
     public AppLibraryContainerView(Context context) {
         this(context, null);
@@ -141,6 +144,14 @@ public class AppLibraryContainerView extends FrameLayout
             mGridView.setItemAnimator(null);
             mGridView.setEdgeEffectFactory(new SpringEdgeEffectFactory());
             mGridView.setNestedScrollingEnabled(true);
+            mGridView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+                @Override
+                public void onScrollStateChanged(@NonNull RecyclerView view, int state) {
+                    if (state == RecyclerView.SCROLL_STATE_IDLE) {
+                        view.post(AppLibraryContainerView.this::bindPendingRecentApps);
+                    }
+                }
+            });
         }
 
         mSearchAdapter = new AppLibrarySearchAdapter(mActivityContext);
@@ -160,13 +171,13 @@ public class AppLibraryContainerView extends FrameLayout
         if (mSearchResultsView != null) {
             mSearchResultsView.setLayoutManager(new LinearLayoutManager(getContext()));
             mSearchResultsView.setAdapter(mSearchAdapter);
+            mSearchResultsView.setItemAnimator(null);
             mSearchResultsView.setEdgeEffectFactory(new SpringEdgeEffectFactory());
             mSearchResultsView.setNestedScrollingEnabled(true);
             mSearchResultsView.addOnScrollListener(new RecyclerView.OnScrollListener() {
                 @Override
                 public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
                     if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
-                        mKeyboardDismissedByScroll = true;
                         if (mSearchBar != null) {
                             mSearchBar.hideKeyboard();
                         }
@@ -203,6 +214,7 @@ public class AppLibraryContainerView extends FrameLayout
         }
         if (!hasWindowFocus) {
             cancelPullToSearch();
+            mTouchInProgress = false;
         } else {
             mPullToSearchEligible = false;
         }
@@ -221,6 +233,7 @@ public class AppLibraryContainerView extends FrameLayout
     public boolean dispatchTouchEvent(MotionEvent ev) {
         int action = ev.getActionMasked();
         if (action == MotionEvent.ACTION_DOWN) {
+            mTouchInProgress = true;
             mDownX = ev.getX();
             mDownY = ev.getY();
             if (mExpandedSheet != null && mExpandedSheet.isOpen()) {
@@ -230,7 +243,7 @@ public class AppLibraryContainerView extends FrameLayout
                 mPullToSearchEligible = false;
                 getParent().requestDisallowInterceptTouchEvent(true);
             } else if (mGridView != null && isLibraryFullyOpen()) {
-                // A horizontal entry swipe must not start the pull-to-search translation.
+                // A horizontal entry swipe must not arm pull-to-search.
                 Rect bounds = new Rect();
                 mPullToSearchEligible =
                         mGridView.getGlobalVisibleRect(bounds)
@@ -250,7 +263,6 @@ public class AppLibraryContainerView extends FrameLayout
             } else if (mSearchBar != null && mSearchBar.isSearching()) {
                 getParent().requestDisallowInterceptTouchEvent(true);
                 if (dy > 20 && mSearchBar != null) {
-                    mKeyboardDismissedByScroll = true;
                     mSearchBar.hideKeyboard();
                 }
             } else {
@@ -262,41 +274,35 @@ public class AppLibraryContainerView extends FrameLayout
 
                 if (mPullToSearchEligible && !isLibraryFullyOpen()) {
                     cancelPullToSearch();
-                } else if (mPullToSearchEligible && absDx > absDy) {
+                } else if (mPullToSearchEligible && absDx > mTouchSlop && absDx > absDy) {
                     // Let the horizontal library gesture win.
                     mPullToSearchEligible = false;
-                } else if (mPullToSearchEligible
-                        && dy > mTouchSlop
-                        && dy > absDx * 1.2f
-                        && mAppLibraryContent != null) {
-                    float pullDistance = dy - mTouchSlop;
-                    float density = getResources().getDisplayMetrics().density;
-                    // RecyclerView's shared spring handles motion; this only opens search.
-                    if (pullDistance > 60f * density) {
-                        mPullToSearchEligible = false;
-                        mKeyboardDismissedByScroll = false;
-                        mPendingSwipeSearchKeyboard = false;
-                        if (mSearchBar != null) {
-                            mSearchBar.setSearching(true);
-                            mPendingSwipeSearchKeyboard = true;
-                        }
-                    }
                 }
             }
         } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            float dy = ev.getY() - mDownY;
+            boolean openSearch = action == MotionEvent.ACTION_UP
+                    && mPullToSearchEligible && isLibraryFullyOpen()
+                    && mGridView != null && !mGridView.canScrollVertically(-1)
+                    && dy > mTouchSlop + Utilities.dpToPx(PULL_TO_SEARCH_DISTANCE_DP, getContext())
+                    && dy > Math.abs(ev.getX() - mDownX) * 1.2f;
             if (getParent() != null) {
                 getParent().requestDisallowInterceptTouchEvent(false);
             }
             mPullToSearchEligible = false;
-            boolean showKeyboardAfterSuper = mPendingSwipeSearchKeyboard;
-            mPendingSwipeSearchKeyboard = false;
+            mTouchInProgress = false;
             boolean result = super.dispatchTouchEvent(ev);
-            if (showKeyboardAfterSuper && mSearchBar != null) {
-                mSearchBar.showKeyboard();
-            }
+            // Finish RecyclerView's gesture before opening the list and requesting the keyboard.
+            if (openSearch && mSearchBar != null) mSearchBar.setSearching(true);
+            bindPendingRecentApps();
             return result;
         }
-        return super.dispatchTouchEvent(ev);
+        boolean handled = super.dispatchTouchEvent(ev);
+        if (action == MotionEvent.ACTION_DOWN && !handled) {
+            mTouchInProgress = false;
+            bindPendingRecentApps();
+        }
+        return handled;
     }
 
     public void setModel(AppLibraryModel model) {
@@ -314,6 +320,7 @@ public class AppLibraryContainerView extends FrameLayout
         if (mCategoryAdapter != null) {
             mCategoryAdapter.setGroups(groups);
         }
+        if (mExpandedSheet != null) mExpandedSheet.onCategoriesUpdated(groups);
     }
 
     private boolean isLibraryFullyOpen() {
@@ -330,6 +337,7 @@ public class AppLibraryContainerView extends FrameLayout
     }
 
     public void onLibraryOpened() {
+        bindPendingRecentApps();
         if (mModel != null
                 && isAttachedToWindow()
                 && mActivityContext instanceof Launcher
@@ -342,17 +350,32 @@ public class AppLibraryContainerView extends FrameLayout
     public void onRecentAppsUpdated(List<AppInfo> apps) {
         if (mRecentApps.equals(apps)) return;
         mRecentApps = apps;
-        // Usage stats arrive asynchronously: never resize the recent row during
-        // an opening swipe or while the library is visible.
-        if (isShown()
-                && mActivityContext instanceof Launcher
-                && ((Launcher) mActivityContext).getAppLibraryController() != null
-                && ((Launcher) mActivityContext).getAppLibraryController().getProgress() < 1f) {
+        if (shouldDeferRecentAppsBind()) {
             mPendingRecentAppsBind = true;
             return;
         }
         mPendingRecentAppsBind = false;
         bindRecentApps();
+    }
+
+    private boolean shouldDeferRecentAppsBind() {
+        if (!isShown()) return false;
+        if (mTouchInProgress
+                || (mGridView != null
+                        && mGridView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE)) return true;
+        if (mActivityContext instanceof Launcher
+                && ((Launcher) mActivityContext).getAppLibraryController() != null) {
+            float progress = ((Launcher) mActivityContext).getAppLibraryController().getProgress();
+            return progress > 0f && progress < 1f;
+        }
+        return false;
+    }
+
+    private void bindPendingRecentApps() {
+        if (mPendingRecentAppsBind && !shouldDeferRecentAppsBind()) {
+            mPendingRecentAppsBind = false;
+            bindRecentApps();
+        }
     }
 
     private void bindRecentApps() {
@@ -364,7 +387,10 @@ public class AppLibraryContainerView extends FrameLayout
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        LauncherPrefs.get(getContext()).addListener(this, LauncherPrefs.APP_LIBRARY_SHOW_LABELS);
+        ThemeManager.INSTANCE.get(getContext()).addChangeListener(this);
+        LauncherPrefs.get(getContext()).addListener(this, LauncherPrefs.APP_LIBRARY_SHOW_LABELS,
+                LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION);
+        onThemeChanged();
         if (mShowLabels != LauncherPrefs.APP_LIBRARY_SHOW_LABELS.get(getContext())) {
             onPrefChanged(LauncherPrefs.APP_LIBRARY_SHOW_LABELS.getSharedPrefKey());
         }
@@ -372,12 +398,19 @@ public class AppLibraryContainerView extends FrameLayout
 
     @Override
     protected void onDetachedFromWindow() {
-        LauncherPrefs.get(getContext()).removeListener(this, LauncherPrefs.APP_LIBRARY_SHOW_LABELS);
+        ThemeManager.INSTANCE.get(getContext()).removeChangeListener(this);
+        LauncherPrefs.get(getContext()).removeListener(this, LauncherPrefs.APP_LIBRARY_SHOW_LABELS,
+                LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION);
+        mTouchInProgress = false;
         super.onDetachedFromWindow();
     }
 
     @Override
     public void onPrefChanged(String key) {
+        if (LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION.getSharedPrefKey().equals(key)) {
+            onThemeChanged();
+            return;
+        }
         if (LauncherPrefs.APP_LIBRARY_SHOW_LABELS.getSharedPrefKey().equals(key)) {
             mShowLabels = LauncherPrefs.APP_LIBRARY_SHOW_LABELS.get(getContext());
             post(
@@ -391,6 +424,16 @@ public class AppLibraryContainerView extends FrameLayout
     }
 
     @Override
+    public void onThemeChanged() {
+        post(() -> {
+            if (!isAttachedToWindow()) return;
+            mCategoryAdapter.notifyDataSetChanged();
+            mSearchAdapter.notifyDataSetChanged();
+            mExpandedSheet.refreshIcons();
+        });
+    }
+
+    @Override
     public void onAllAppsUpdated(List<AppInfo> allApps) {
         if (isShown()
                 && mActivityContext instanceof Launcher
@@ -398,8 +441,11 @@ public class AppLibraryContainerView extends FrameLayout
                         .isInState(com.android.launcher3.LauncherState.APP_LIBRARY)) {
             onLibraryOpened();
         }
-        if (mSearchAdapter != null && mSearchBar != null && !mSearchBar.isSearching()) {
-            mSearchAdapter.setApps(allApps, true);
+        if (mSearchAdapter != null && mSearchBar != null) {
+            String query = mSearchBar.isSearching()
+                    ? mSearchBar.getEditText().getText().toString().trim() : "";
+            mSearchAdapter.setApps(query.isEmpty() || mModel == null
+                    ? allApps : mModel.searchApps(query), query.isEmpty());
         }
     }
 
@@ -459,7 +505,7 @@ public class AppLibraryContainerView extends FrameLayout
         }
 
         if (mSearchResultsView != null) {
-            mSearchResultsView.animate().cancel();
+            mSearchResultsView.animate().setListener(null).cancel();
         }
         if (mGridView != null) {
             mGridView.animate().cancel();
@@ -482,12 +528,14 @@ public class AppLibraryContainerView extends FrameLayout
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     mSearchResultsView.setRenderEffect(null);
                 }
+                if (mSearchResultsView.getVisibility() != View.VISIBLE) {
+                    mSearchResultsView.setAlpha(0f);
+                }
                 mSearchResultsView.setVisibility(View.VISIBLE);
-                mSearchResultsView.setAlpha(0f);
-                mSearchResultsView.animate().alpha(1f).setDuration(180).setListener(null).start();
+                mSearchResultsView.animate().alpha(1f).setDuration(280)
+                        .setInterpolator(EMPHASIZED_DECELERATE).setListener(null).start();
             }
         } else {
-            mKeyboardDismissedByScroll = false;
             if (mAlphabetIndexer != null) {
                 mAlphabetIndexer.setVisibility(View.GONE);
             }
@@ -496,10 +544,12 @@ public class AppLibraryContainerView extends FrameLayout
                     mGridView.setRenderEffect(null);
                 }
                 mGridView.setVisibility(View.VISIBLE);
-                mGridView.animate().alpha(1f).setDuration(180).setListener(null).start();
+                mGridView.animate().alpha(1f).setDuration(220)
+                        .setInterpolator(EMPHASIZED).setListener(null).start();
             }
             if (mSearchResultsView != null) {
-                mSearchResultsView.animate().alpha(0f).setDuration(140).setListener(new AnimatorListenerAdapter() {
+                mSearchResultsView.animate().alpha(0f).setDuration(180)
+                        .setInterpolator(EMPHASIZED).setListener(new AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationEnd(Animator animation) {
                         if (mSearchBar == null || !mSearchBar.isSearching()) {
@@ -624,12 +674,7 @@ public class AppLibraryContainerView extends FrameLayout
             getParent().requestDisallowInterceptTouchEvent(false);
         }
         mPullToSearchEligible = false;
-        mKeyboardDismissedByScroll = false;
-        mPendingSwipeSearchKeyboard = false;
-    }
-
-    public boolean shouldContainerScroll(MotionEvent ev) {
-        return false;
+        mTouchInProgress = false;
     }
 
     public AppLibrarySearchBar getSearchBar() {

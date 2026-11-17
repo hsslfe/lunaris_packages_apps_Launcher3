@@ -17,6 +17,7 @@ import android.os.UserManager;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.launcher3.allapps.AllAppsStore;
 import com.android.launcher3.model.data.AppInfo;
 
 import org.junit.Before;
@@ -95,5 +96,35 @@ public class AppLibraryRecentAppsTest {
         assertEquals(
                 List.of(workApp, personalApp),
                 AppLibraryRecentApps.query(mContext, List.of(personalApp, workApp)));
+    }
+
+    @Test
+    public void usageCache_isWarmedWhenAppsArrive_beforeLibraryIsOpened() {
+        when(mContext.getApplicationContext()).thenReturn(mContext);
+        AllAppsStore store = mock(AllAppsStore.class);
+        when(store.getApps()).thenReturn(new AppInfo[0]);
+        RecordingModel model = new RecordingModel(mContext, store);
+        try {
+            assertEquals(0, model.refreshRequests);
+            when(store.getApps()).thenReturn(new AppInfo[] {app("camera", "Main", mPersonal)});
+            model.onAppsUpdated();
+            assertEquals(1, model.refreshRequests);
+        } finally {
+            model.destroy();
+            AppCategoryEngine.clearCache();
+        }
+    }
+
+    private static class RecordingModel extends AppLibraryModel {
+        int refreshRequests;
+
+        RecordingModel(Context context, AllAppsStore store) {
+            super(context, store);
+        }
+
+        @Override
+        public void refreshRecentApps() {
+            refreshRequests++;
+        }
     }
 }

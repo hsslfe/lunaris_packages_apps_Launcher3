@@ -158,6 +158,18 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
         allApps.sort(APP_NAME_COMPARATOR);
         mAllAppsList = Collections.unmodifiableList(allApps);
 
+        // Reuse the ranking with fresh AppInfo objects after icon/theme or package updates.
+        List<AppInfo> recentApps = new ArrayList<>(mRecentApps.size());
+        for (AppInfo recent : mRecentApps) {
+            for (AppInfo app : allApps) {
+                if (app.componentName.equals(recent.componentName) && app.user.equals(recent.user)) {
+                    recentApps.add(app);
+                    break;
+                }
+            }
+        }
+        mRecentApps = List.copyOf(recentApps);
+
         EnumMap<AppCategory, List<AppInfo>> map = new EnumMap<>(AppCategory.class);
         for (AppCategory cat : AppCategory.values()) {
             map.put(cat, new ArrayList<>());
@@ -198,6 +210,8 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
         groups.sort(Comparator.comparingInt(g -> g.getCategory().getPriority()));
         mCategoryGroups = Collections.unmodifiableList(groups);
         notifyListeners();
+        // Warm the cache when apps arrive, so the first library opening need not query usage.
+        refreshRecentApps();
     }
 
     /** Usage queries run off the UI thread and are coalesced across rapid repeated openings. */
@@ -238,16 +252,8 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
         return mCategoryGroups;
     }
 
-    public List<AppInfo> getAllAppsList() {
-        return mAllAppsList;
-    }
-
     public List<AppInfo> getAllApps() {
         return mAllAppsList;
-    }
-
-    public List<AppInfo> filterApps(String query) {
-        return searchApps(query);
     }
 
     public List<AppInfo> searchApps(String query) {

@@ -4,7 +4,6 @@ import android.content.Context;
 import android.util.AttributeSet;
 import android.view.View;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -16,7 +15,6 @@ import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.applibrary.model.AppCategoryGroup;
-import com.android.launcher3.icons.FastBitmapDrawable;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.views.ActivityContext;
 
@@ -36,10 +34,10 @@ public class AppCategoryCardView extends LinearLayout {
     private FrameLayout mSlot3Container;
     private BubbleTextView mSlot3Single;
     private LinearLayout mSlot3MiniCluster;
-    private ImageView mMiniIcon0;
-    private ImageView mMiniIcon1;
-    private ImageView mMiniIcon2;
-    private ImageView mMiniIcon3;
+    private BubbleTextView mMiniIcon0;
+    private BubbleTextView mMiniIcon1;
+    private BubbleTextView mMiniIcon2;
+    private BubbleTextView mMiniIcon3;
 
     private AppCategoryGroup mGroup;
     private OnCategoryExpandListener mExpandListener;
@@ -166,14 +164,18 @@ public class AppCategoryCardView extends LinearLayout {
         }
     }
 
-    private void bindMiniIcon(ImageView view, AppInfo app) {
+    private void bindMiniIcon(BubbleTextView view, AppInfo app) {
         if (view == null) {
             return;
         }
-        if (app != null && app.bitmap != null) {
+        if (app != null) {
             view.setVisibility(View.VISIBLE);
-            FastBitmapDrawable drawable = app.newIcon(getContext());
-            view.setImageDrawable(drawable);
+            view.reset();
+            view.applyFromApplicationInfo(app);
+            // The cluster opens the category; its miniature icons are not separate targets.
+            view.setClickable(false);
+            view.setLongClickable(false);
+            view.setFocusable(false);
         } else {
             view.setVisibility(View.INVISIBLE);
         }
