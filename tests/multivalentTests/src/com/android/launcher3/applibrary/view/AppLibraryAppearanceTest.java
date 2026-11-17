@@ -7,12 +7,16 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.view.ContextThemeWrapper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 
+import androidx.core.graphics.ColorUtils;
 import androidx.test.annotation.UiThreadTest;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
@@ -149,6 +153,37 @@ public class AppLibraryAppearanceTest {
         assertFalse(((AppLibraryIconView) card.findViewById(R.id.mini_icon_0)).shouldShowLabel());
         assertTrue(icon.shouldShowLabel());
         assertNotNull(row.findViewById(R.id.app_title));
+    }
+
+    @Test
+    public void lightMode_keepsLibraryTextWhite_andExpandedSurfaceDark() {
+        Configuration config = new Configuration(mContext.getResources().getConfiguration());
+        config.uiMode =
+                (config.uiMode & ~Configuration.UI_MODE_NIGHT_MASK)
+                        | Configuration.UI_MODE_NIGHT_NO;
+        ContextThemeWrapper light = new ContextThemeWrapper(mContext, R.style.LauncherTheme);
+        light.applyOverrideConfiguration(config);
+        assertFalse(Utilities.isDarkTheme(light));
+        LayoutInflater inflater = LayoutInflater.from(light);
+        FrameLayout parent = new FrameLayout(light);
+        View card = inflater.inflate(R.layout.app_library_category_card, parent, false);
+        View row = inflater.inflate(R.layout.app_library_search_row, parent, false);
+        View sheet = inflater.inflate(R.layout.app_library_expanded_sheet, parent, false);
+        for (TextView text :
+                new TextView[] {
+                    card.findViewById(R.id.category_title), card.findViewById(R.id.card_slot_0),
+                    row.findViewById(R.id.app_title), sheet.findViewById(R.id.expanded_sheet_title)
+                }) {
+            assertEquals(Color.WHITE, text.getCurrentTextColor());
+        }
+        GradientDrawable background =
+                (GradientDrawable) sheet.findViewById(R.id.expanded_sheet_card).getBackground();
+        int surface = background.getColor().getDefaultColor();
+        assertEquals(217, Color.alpha(surface));
+        assertTrue(
+                ColorUtils.calculateContrast(
+                                Color.WHITE, ColorUtils.setAlphaComponent(surface, 255))
+                        >= 7);
     }
 
     @Test

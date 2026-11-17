@@ -57,8 +57,8 @@
                     android:inputType="text|textNoSuggestions|textCapWords"
                     android:maxLines="1"
                     android:singleLine="true"
-                    android:textColor="?android:attr/textColorPrimary"
-                    android:textColorHint="?android:attr/textColorSecondary"
+                    android:textColor="@android:color/white"
+                    android:textColorHint="@android:color/white"
                     android:textSize="16sp" />
 
                 <ImageButton
@@ -78,7 +78,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="12dp"
                 android:text="@string/app_library_search_cancel"
-                android:textColor="?android:attr/textColorPrimary"
+                android:textColor="@android:color/white"
                 android:textSize="16sp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:padding="8dp"

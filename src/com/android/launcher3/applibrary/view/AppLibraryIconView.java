@@ -1,6 +1,7 @@
 package com.android.launcher3.applibrary.view;
 
 import android.content.Context;
+import android.graphics.Color;
 import android.util.AttributeSet;
 
 import com.android.launcher3.BubbleTextView;
@@ -15,6 +16,7 @@ public class AppLibraryIconView extends BubbleTextView {
     public AppLibraryIconView(Context context, AttributeSet attrs) {
         super(context, attrs);
         setCenterVertically(true);
+        setTextColor(Color.WHITE);
     }
 
     @Override

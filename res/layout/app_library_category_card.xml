@@ -26,7 +26,7 @@
             android:gravity="center"
             android:textSize="14sp"
             android:textStyle="bold"
-            android:textColor="?android:attr/textColorPrimary"
+            android:textColor="@android:color/white"
             android:shadowColor="#66000000"
             android:shadowDx="0"
             android:shadowDy="1"

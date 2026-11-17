@@ -2,6 +2,7 @@ package com.android.launcher3.applibrary.view;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.util.AttributeSet;
@@ -10,8 +11,6 @@ import android.view.MotionEvent;
 import android.view.View;
 
 import androidx.annotation.Nullable;
-
-import com.android.launcher3.util.Themes;
 
 public class AppLibraryAlphabetIndexer extends View {
 
@@ -47,8 +46,7 @@ public class AppLibraryAlphabetIndexer extends View {
         float textSize = TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_SP, 10f, getResources().getDisplayMetrics());
         mPaint.setTextSize(textSize);
-        int textColor = Themes.getAttrColor(getContext(), android.R.attr.textColorSecondary);
-        mPaint.setColor(textColor);
+        mPaint.setColor(Color.WHITE);
     }
 
     public void setOnSectionSelectedListener(OnSectionSelectedListener listener) {
