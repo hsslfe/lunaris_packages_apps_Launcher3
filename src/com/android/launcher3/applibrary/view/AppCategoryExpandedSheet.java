@@ -6,6 +6,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.content.Context;
 import android.graphics.Rect;
+import android.graphics.drawable.GradientDrawable;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -17,6 +18,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.graphics.ColorUtils;
 import androidx.core.view.OneShotPreDrawListener;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -30,6 +32,7 @@ import com.android.launcher3.Utilities;
 import com.android.launcher3.R;
 import com.android.launcher3.applibrary.model.AppCategoryGroup;
 import com.android.launcher3.model.data.AppInfo;
+import com.android.launcher3.util.Themes;
 import com.android.launcher3.views.ActivityContext;
 
 import java.util.ArrayList;
@@ -88,6 +91,10 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         setOnClickListener(v -> hide(true));
         if (mCardView != null) {
             mCardView.setOnClickListener(v -> {});
+            // Resolve the same theme color with a readable 95% opacity, independently of cards.
+            GradientDrawable background = (GradientDrawable) mCardView.getBackground().mutate();
+            background.setColor(ColorUtils.setAlphaComponent(
+                    Themes.getAttrColor(getContext(), R.attr.allAppsSurfaceLow), 242));
         }
 
         if (mGridView != null) {

@@ -98,7 +98,7 @@ public class AppLibraryState extends LauncherState {
 
     @Override
     public ScrimColors getWorkspaceScrimColor(Launcher launcher) {
-        return new ScrimColors(Color.argb(204, 0, 0, 0), Color.TRANSPARENT);
+        return new ScrimColors(Color.argb(179, 0, 0, 0), Color.TRANSPARENT);
     }
 
     @Override
