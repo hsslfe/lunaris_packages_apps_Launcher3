@@ -113,7 +113,7 @@ public class AppLibraryAppearanceTest {
     }
 
     @Test
-    public void expandedCategory_hasAFullyOpaqueSurface() {
+    public void expandedCategory_has85PercentOpaqueSurface() {
         View sheet =
                 LayoutInflater.from(mContext)
                         .inflate(
@@ -122,6 +122,6 @@ public class AppLibraryAppearanceTest {
                                 false);
         GradientDrawable background =
                 (GradientDrawable) sheet.findViewById(R.id.expanded_sheet_card).getBackground();
-        assertEquals(255, Color.alpha(background.getColor().getDefaultColor()));
+        assertEquals(217, Color.alpha(background.getColor().getDefaultColor()));
     }
 }
