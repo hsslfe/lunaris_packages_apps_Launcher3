@@ -538,22 +538,11 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     }
 
     @Override
-    protected void onScreenOnChanged(boolean isOn) {
-        if (!isOn && mAppTransitionManager != null) {
-            mAppTransitionManager.cancelImmediateAppLaunch();
-        }
-        super.onScreenOnChanged(isOn);
-    }
-
-    @Override
     public RunnableList startActivitySafely(View v, Intent intent, ItemInfo item) {
         if (mUnlockAnimationController != null) {
             mUnlockAnimationController.cancel();
         }
         RunnableList deferred = new RunnableList();
-        if (mAppTransitionManager != null) {
-            deferred.add(mAppTransitionManager.beginImmediateAppLaunch(v, item));
-        }
         if (com.android.quickstep.AbsSwipeUpHandler.finishHomeFlightForLaunch(() -> {
             if (isDestroyed()) {
                 deferred.executeAllAndDestroy();
@@ -1159,10 +1148,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     protected void onNewIntent(Intent intent) {
-        if (Intent.ACTION_MAIN.equals(intent.getAction())
-                && intent.hasCategory(Intent.CATEGORY_HOME) && mAppTransitionManager != null) {
-            mAppTransitionManager.cancelImmediateAppLaunch();
-        }
         boolean intentHasGnc = GestureNavContract.canBuildFromIntent(intent);
         super.onNewIntent(intent);
         OverviewCommandHelper overviewCommandHelper = mTISBindHelper.getOverviewCommandHelper();
