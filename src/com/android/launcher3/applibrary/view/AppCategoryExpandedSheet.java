@@ -63,7 +63,6 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
     private float mStartTranslationY = 0f;
     private float mStartScaleX = 0.85f;
     private float mStartScaleY = 0.85f;
-    private boolean mIsAnimating = false;
     private int mAnimationId;
     private OneShotPreDrawListener mPendingOpen;
 
@@ -232,7 +231,6 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
 
         setVisibility(View.VISIBLE);
         setAlpha(0f);
-        mIsAnimating = true;
 
         mPendingOpen = OneShotPreDrawListener.add(this, () -> {
             mPendingOpen = null;
@@ -275,12 +273,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
                         .alpha(1.0f)
                         .setDuration(280)
                         .setInterpolator(EMPHASIZED)
-                        .setListener(new AnimatorListenerAdapter() {
-                            @Override
-                            public void onAnimationEnd(Animator animation) {
-                                if (animationId == mAnimationId) mIsAnimating = false;
-                            }
-                        })
+                        .setListener(null)
                         .start();
             }
 
@@ -301,8 +294,8 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         cancelAnimations();
         final int animationId = mAnimationId;
         if (!animate) {
-            mIsAnimating = false;
             setVisibility(View.GONE);
+            clearHiddenApps();
             setAlpha(1f);
             if (mCardView != null) {
                 mCardView.setAlpha(1f);
@@ -322,7 +315,6 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
             mDismissListener.onDismissStarted(duration);
         }
 
-        mIsAnimating = true;
         if (mCardView != null) {
             mCardView.animate()
                     .translationX(mStartTranslationX)
@@ -344,13 +336,26 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
                     public void onAnimationEnd(Animator animation) {
                         if (animationId != mAnimationId) return;
                         setVisibility(View.GONE);
-                        mIsAnimating = false;
+                        clearHiddenApps();
                         if (mDismissListener != null) {
                             mDismissListener.onDismissFinished();
                         }
                     }
                 })
                 .start();
+    }
+
+    private void clearHiddenApps() {
+        mCategory = null;
+        mSourceBounds = null;
+        if (mGridView != null) {
+            mGridView.stopScroll();
+            SpringEdgeEffectFactory.finishSpringAnimations(mGridView);
+            for (int i = 0; i < mGridView.getChildCount(); i++) {
+                ((AppLibraryIconView) mGridView.getChildAt(i)).clearAppIcon();
+            }
+        }
+        if (mAdapter != null) mAdapter.setApps(List.of());
     }
 
     private void cancelAnimations() {
@@ -371,10 +376,6 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
 
     public boolean isOpen() {
         return getVisibility() == View.VISIBLE;
-    }
-
-    public boolean isAnimating() {
-        return mIsAnimating;
     }
 
     private class ExpandedGridAdapter extends RecyclerView.Adapter<ExpandedGridAdapter.ViewHolder> {
@@ -428,6 +429,12 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
                 }
                 return false;
             });
+        }
+
+        @Override
+        public void onViewRecycled(@NonNull ViewHolder holder) {
+            ((AppLibraryIconView) holder.mIcon).clearAppIcon();
+            super.onViewRecycled(holder);
         }
 
         @Override

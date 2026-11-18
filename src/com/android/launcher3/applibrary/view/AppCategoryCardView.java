@@ -3,7 +3,6 @@ package com.android.launcher3.applibrary.view;
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.View;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -31,7 +30,6 @@ public class AppCategoryCardView extends LinearLayout {
     private BubbleTextView mSlot0;
     private BubbleTextView mSlot1;
     private BubbleTextView mSlot2;
-    private FrameLayout mSlot3Container;
     private BubbleTextView mSlot3Single;
     private LinearLayout mSlot3MiniCluster;
     private BubbleTextView mMiniIcon0;
@@ -62,7 +60,6 @@ public class AppCategoryCardView extends LinearLayout {
         mSlot0 = findViewById(R.id.card_slot_0);
         mSlot1 = findViewById(R.id.card_slot_1);
         mSlot2 = findViewById(R.id.card_slot_2);
-        mSlot3Container = findViewById(R.id.card_slot_3_container);
         mSlot3Single = findViewById(R.id.card_slot_3_single);
         mSlot3MiniCluster = findViewById(R.id.card_slot_3_mini_cluster);
         mMiniIcon0 = findViewById(R.id.mini_icon_0);
@@ -160,6 +157,7 @@ public class AppCategoryCardView extends LinearLayout {
                 return false;
             });
         } else {
+            ((AppLibraryIconView) view).clearAppIcon();
             view.setVisibility(View.INVISIBLE);
         }
     }
@@ -177,7 +175,18 @@ public class AppCategoryCardView extends LinearLayout {
             view.setLongClickable(false);
             view.setFocusable(false);
         } else {
+            ((AppLibraryIconView) view).clearAppIcon();
             view.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    void clearAppIcons() {
+        mGroup = null;
+        mExpandListener = null;
+        for (BubbleTextView icon : new BubbleTextView[] {
+                mSlot0, mSlot1, mSlot2, mSlot3Single,
+                mMiniIcon0, mMiniIcon1, mMiniIcon2, mMiniIcon3}) {
+            if (icon != null) ((AppLibraryIconView) icon).clearAppIcon();
         }
     }
 }

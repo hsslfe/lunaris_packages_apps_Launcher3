@@ -45,6 +45,14 @@ public class SpringEdgeEffectFactory extends RecyclerView.EdgeEffectFactory {
         return new SpringEdgeEffect(offsetFor(view, vertical), sign);
     }
 
+    /** Stop spring work when a list is hidden without being detached from its window. */
+    public static void finishSpringAnimations(View view) {
+        Object vertical = view.getTag(R.id.launcher_spring_vertical);
+        Object horizontal = view.getTag(R.id.launcher_spring_horizontal);
+        if (vertical instanceof SpringOffset offset) offset.reset();
+        if (horizontal instanceof SpringOffset offset) offset.reset();
+    }
+
     @SuppressLint({"RestrictedApi", "VisibleForTests"})
     public static void install(NestedScrollView view) {
         if (!(view.mEdgeGlowTop instanceof SpringEdgeEffect)) {

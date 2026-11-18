@@ -325,6 +325,7 @@ public final class HomeUnlockReveal implements ViewTreeObserver.OnPreDrawListene
         private final CosUnlockAnimationSpec.Spring mSpring;
         private float mMinimumVisibleChange;
         private double mFinishedAt = Double.POSITIVE_INFINITY;
+        private double mMaxDuration = Double.NaN;
         float value;
 
         SpringState(CosUnlockAnimationSpec.Spring spring, float minimumVisibleChange) {
@@ -336,6 +337,7 @@ public final class HomeUnlockReveal implements ViewTreeObserver.OnPreDrawListene
             if (minimumVisibleChange < mMinimumVisibleChange) {
                 mMinimumVisibleChange = minimumVisibleChange;
                 mFinishedAt = Double.POSITIVE_INFINITY;
+                mMaxDuration = Double.NaN;
             }
         }
 
@@ -352,7 +354,10 @@ public final class HomeUnlockReveal implements ViewTreeObserver.OnPreDrawListene
         }
 
         double maxDuration() {
-            return mSpring.maxDuration(mMinimumVisibleChange);
+            if (Double.isNaN(mMaxDuration)) {
+                mMaxDuration = mSpring.maxDuration(mMinimumVisibleChange);
+            }
+            return mMaxDuration;
         }
     }
 

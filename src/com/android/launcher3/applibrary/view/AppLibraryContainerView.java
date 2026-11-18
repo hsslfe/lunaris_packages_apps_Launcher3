@@ -65,6 +65,7 @@ public class AppLibraryContainerView extends FrameLayout
     private final ActivityContext mActivityContext;
     private final Rect mInsets = new Rect();
     private ValueAnimator mBlurAnimator;
+    private float mCategoryBlurRadius;
     private boolean mPendingRecentAppsBind;
     private boolean mShowLabels;
     private boolean mTouchInProgress;
@@ -73,6 +74,13 @@ public class AppLibraryContainerView extends FrameLayout
     private float mDownX;
     private float mDownY;
     private boolean mPullToSearchEligible = false;
+    private final Runnable mBindPendingRecentApps = this::bindPendingRecentApps;
+    private final Runnable mRefreshIcons = () -> {
+        if (!isAttachedToWindow()) return;
+        mCategoryAdapter.notifyDataSetChanged();
+        mSearchAdapter.notifyDataSetChanged();
+        mExpandedSheet.refreshIcons();
+    };
 
     public AppLibraryContainerView(Context context) {
         this(context, null);
@@ -148,7 +156,8 @@ public class AppLibraryContainerView extends FrameLayout
                 @Override
                 public void onScrollStateChanged(@NonNull RecyclerView view, int state) {
                     if (state == RecyclerView.SCROLL_STATE_IDLE) {
-                        view.post(AppLibraryContainerView.this::bindPendingRecentApps);
+                        removeCallbacks(mBindPendingRecentApps);
+                        post(mBindPendingRecentApps);
                     }
                 }
             });
@@ -196,11 +205,7 @@ public class AppLibraryContainerView extends FrameLayout
 
                         @Override
                         public void onDismissFinished() {
-                            if (mBlurAnimator != null) mBlurAnimator.cancel();
-                            if (mAppLibraryContent != null
-                                    && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                mAppLibraryContent.setRenderEffect(null);
-                            }
+                            clearCategoryBackgroundBlur();
                         }
                     });
         }
@@ -311,6 +316,7 @@ public class AppLibraryContainerView extends FrameLayout
         }
         mModel = model;
         if (mModel != null) {
+            mModel.setEnabled(LauncherPrefs.APP_LIBRARY_ENABLED.get(getContext()));
             mModel.addListener(this);
         }
     }
@@ -389,7 +395,8 @@ public class AppLibraryContainerView extends FrameLayout
         super.onAttachedToWindow();
         ThemeManager.INSTANCE.get(getContext()).addChangeListener(this);
         LauncherPrefs.get(getContext()).addListener(this, LauncherPrefs.APP_LIBRARY_SHOW_LABELS,
-                LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION);
+                LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION, LauncherPrefs.APP_LIBRARY_ENABLED);
+        if (mModel != null) mModel.setEnabled(LauncherPrefs.APP_LIBRARY_ENABLED.get(getContext()));
         onThemeChanged();
         if (mShowLabels != LauncherPrefs.APP_LIBRARY_SHOW_LABELS.get(getContext())) {
             onPrefChanged(LauncherPrefs.APP_LIBRARY_SHOW_LABELS.getSharedPrefKey());
@@ -398,15 +405,35 @@ public class AppLibraryContainerView extends FrameLayout
 
     @Override
     protected void onDetachedFromWindow() {
+        reset();
+        removeCallbacks(mBindPendingRecentApps);
+        removeCallbacks(mRefreshIcons);
         ThemeManager.INSTANCE.get(getContext()).removeChangeListener(this);
-        LauncherPrefs.get(getContext()).removeListener(this, LauncherPrefs.APP_LIBRARY_SHOW_LABELS,
-                LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION);
+        LauncherPrefs.get(getContext()).removeListener(this,
+                LauncherPrefs.APP_LIBRARY_SHOW_LABELS,
+                LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION,
+                LauncherPrefs.APP_LIBRARY_ENABLED);
         mTouchInProgress = false;
         super.onDetachedFromWindow();
     }
 
     @Override
     public void onPrefChanged(String key) {
+        if (LauncherPrefs.APP_LIBRARY_ENABLED.getSharedPrefKey().equals(key)) {
+            boolean enabled = LauncherPrefs.APP_LIBRARY_ENABLED.get(getContext());
+            if (mModel != null) mModel.setEnabled(enabled);
+            if (!enabled) {
+                reset();
+                mCategoryAdapter.setRecentApps(List.of());
+                mPendingRecentAppsBind = false;
+                mRecentApps = List.of();
+                if (mActivityContext instanceof Launcher) {
+                    ((Launcher) mActivityContext).getStateManager()
+                            .goToState(com.android.launcher3.LauncherState.NORMAL);
+                }
+            }
+            return;
+        }
         if (LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION.getSharedPrefKey().equals(key)) {
             onThemeChanged();
             return;
@@ -425,12 +452,8 @@ public class AppLibraryContainerView extends FrameLayout
 
     @Override
     public void onThemeChanged() {
-        post(() -> {
-            if (!isAttachedToWindow()) return;
-            mCategoryAdapter.notifyDataSetChanged();
-            mSearchAdapter.notifyDataSetChanged();
-            mExpandedSheet.refreshIcons();
-        });
+        removeCallbacks(mRefreshIcons);
+        post(mRefreshIcons);
     }
 
     @Override
@@ -441,7 +464,7 @@ public class AppLibraryContainerView extends FrameLayout
                         .isInState(com.android.launcher3.LauncherState.APP_LIBRARY)) {
             onLibraryOpened();
         }
-        if (mSearchAdapter != null && mSearchBar != null) {
+        if (mSearchAdapter != null && mSearchBar != null && mSearchBar.isSearching()) {
             String query = mSearchBar.isSearching()
                     ? mSearchBar.getEditText().getText().toString().trim() : "";
             mSearchAdapter.setApps(query.isEmpty() || mModel == null
@@ -582,39 +605,50 @@ public class AppLibraryContainerView extends FrameLayout
                 && CrossWindowBlurListeners.getInstance().isCrossWindowBlurEnabled();
     }
 
-    private void applyCategoryBackgroundBlur(boolean enable, long duration) {
+    private void clearCategoryBackgroundBlur() {
+        if (mBlurAnimator == null && mCategoryBlurRadius == 0f) return;
         if (mBlurAnimator != null) {
+            mBlurAnimator.removeAllListeners();
+            mBlurAnimator.removeAllUpdateListeners();
             mBlurAnimator.cancel();
+            mBlurAnimator = null;
         }
+        mCategoryBlurRadius = 0f;
+        if (mAppLibraryContent != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            mAppLibraryContent.setRenderEffect(null);
+        }
+    }
 
+    private void applyCategoryBackgroundBlur(boolean enable, long duration) {
         if (!isBlurEnabled() || mAppLibraryContent == null) {
-            if (mAppLibraryContent != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                mAppLibraryContent.setRenderEffect(null);
-            }
+            clearCategoryBackgroundBlur();
             return;
         }
-
-        float startRadius = enable ? 0.1f : CATEGORY_BLUR_RADIUS;
-        float endRadius = enable ? CATEGORY_BLUR_RADIUS : 0.1f;
-
-        mBlurAnimator = ValueAnimator.ofFloat(startRadius, endRadius);
-        mBlurAnimator.setDuration(duration);
-        mBlurAnimator.setInterpolator(EMPHASIZED);
-        mBlurAnimator.addUpdateListener(animation -> {
-            if (mAppLibraryContent != null) {
-                float r = (Float) animation.getAnimatedValue();
-                mAppLibraryContent.setRenderEffect(RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP));
-            }
+        if (mBlurAnimator != null) {
+            mBlurAnimator.removeAllListeners();
+            mBlurAnimator.removeAllUpdateListeners();
+            mBlurAnimator.cancel();
+        }
+        mBlurAnimator = null;
+        float endRadius = enable ? CATEGORY_BLUR_RADIUS : 0f;
+        if (mCategoryBlurRadius == endRadius) return;
+        ValueAnimator animator = ValueAnimator.ofFloat(mCategoryBlurRadius, endRadius);
+        mBlurAnimator = animator;
+        animator.setDuration(duration);
+        animator.setInterpolator(EMPHASIZED);
+        animator.addUpdateListener(value -> {
+            mCategoryBlurRadius = (Float) value.getAnimatedValue();
+            mAppLibraryContent.setRenderEffect(mCategoryBlurRadius > 0f
+                    ? RenderEffect.createBlurEffect(mCategoryBlurRadius, mCategoryBlurRadius,
+                            Shader.TileMode.CLAMP) : null);
         });
-        mBlurAnimator.addListener(new AnimatorListenerAdapter() {
+        animator.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
-                if (!enable && mAppLibraryContent != null) {
-                    mAppLibraryContent.setRenderEffect(null);
-                }
+                if (mBlurAnimator == animation) mBlurAnimator = null;
             }
         });
-        mBlurAnimator.start();
+        animator.start();
     }
 
     public boolean handleBack() {
@@ -631,9 +665,7 @@ public class AppLibraryContainerView extends FrameLayout
 
     public void reset() {
         cancelPullToSearch();
-        if (mBlurAnimator != null) {
-            mBlurAnimator.cancel();
-        }
+        clearCategoryBackgroundBlur();
         if (mExpandedSheet != null) {
             mExpandedSheet.hide(false);
         }
@@ -649,7 +681,10 @@ public class AppLibraryContainerView extends FrameLayout
         if (mSearchResultsView != null) {
             mSearchResultsView.animate().cancel();
             mSearchResultsView.setVisibility(View.GONE);
+            mSearchResultsView.stopScroll();
+            SpringEdgeEffectFactory.finishSpringAnimations(mSearchResultsView);
             mSearchResultsView.setAlpha(0f);
+            if (mSearchAdapter.getItemCount() > 0) mSearchAdapter.setApps(List.of(), true);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 mSearchResultsView.setRenderEffect(null);
             }
@@ -664,6 +699,8 @@ public class AppLibraryContainerView extends FrameLayout
         if (mGridView != null) {
             mGridView.animate().cancel();
             mGridView.setVisibility(View.VISIBLE);
+            mGridView.stopScroll();
+            SpringEdgeEffectFactory.finishSpringAnimations(mGridView);
             mGridView.setAlpha(1f);
             mGridView.scrollToPosition(0);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
