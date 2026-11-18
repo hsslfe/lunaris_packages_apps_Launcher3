@@ -47,6 +47,8 @@ public final class HomeUnlockRevealController
     private boolean mPrepared;
     private final Runnable mPrepareTimeout = this::cancel;
     private final ScreenOnTracker.ScreenOnListener mScreenOnListener = isOn -> {
+        android.util.Log.d("LunarisUnlockTrace",
+                "LAUNCHER_SCREEN_ON=" + isOn + " prepared=" + mPrepared);
         if (!isOn) cancel();
     };
     private final Runnable mSystemUiConnectionListener = () -> {
@@ -73,6 +75,8 @@ public final class HomeUnlockRevealController
             cancel();
             if (isEnabled()) {
                 mPrepared = mWorkspaceAnimation.prepareForUnlock();
+                android.util.Log.d("LunarisUnlockTrace",
+                        "LAUNCHER_PREPARE_RESULT prepared=" + mPrepared);
                 if (mPrepared) {
                     mLauncher.getDragLayer().postDelayed(mPrepareTimeout, PREPARE_TIMEOUT_MS);
                 }
@@ -118,17 +122,27 @@ public final class HomeUnlockRevealController
     @Override
     public void playUnlockAnimation(boolean unlocked, long duration, long startDelay) {
         MAIN_EXECUTOR.execute(() -> {
+            android.util.Log.d("LunarisUnlockTrace",
+                    "LAUNCHER_PLAY_REQUEST unlocked=" + unlocked
+                            + " duration=" + duration
+                            + " delay=" + startDelay
+                            + " prepared=" + mPrepared
+                            + " scenePrepared=" + mWorkspaceAnimation.isPrepared());
             if (!isEnabled()) {
                 cancel();
                 return;
             }
             if (!mPrepared || !mWorkspaceAnimation.isPrepared()) {
+                android.util.Log.d("LunarisUnlockTrace",
+                        "LAUNCHER_PLAY_REJECT notPrepared");
                 cancel();
                 return;
             }
             mLauncher.getDragLayer().removeCallbacks(mPrepareTimeout);
             stopAnimator();
             if (!mWorkspaceAnimation.finishPreparation()) {
+                android.util.Log.d("LunarisUnlockTrace",
+                        "LAUNCHER_PLAY_REJECT invalidScene");
                 cancel();
                 return;
             }
@@ -164,6 +178,10 @@ public final class HomeUnlockRevealController
                     }
                 }
             });
+            android.util.Log.d("LunarisUnlockTrace",
+                    "LAUNCHER_ANIMATOR_START actualDuration=" + animator.getDuration()
+                            + " actualDelay=" + animator.getStartDelay()
+                            + " from=" + from + " to=" + to);
             animator.start();
         });
     }
@@ -215,6 +233,9 @@ public final class HomeUnlockRevealController
     }
 
     public void cancel() {
+        android.util.Log.d("LunarisUnlockTrace",
+                "LAUNCHER_CANCEL prepared=" + mPrepared
+                        + " animatorActive=" + (mAnimator != null));
         stopAnimator();
         if (mLauncher != null) {
             mLauncher.getDragLayer().removeCallbacks(mPrepareTimeout);

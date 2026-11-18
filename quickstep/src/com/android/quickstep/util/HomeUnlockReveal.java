@@ -238,6 +238,8 @@ public final class HomeUnlockReveal implements ViewTreeObserver.OnPreDrawListene
     public boolean finishPreparation() {
         if (mObserver == null) return false;
         if (!isSceneValid() || !collectViews()) {
+            android.util.Log.d("LunarisUnlockTrace",
+                    "REVEAL_PREPARATION_FAILED sceneInvalid");
             reset();
             return false;
         }
