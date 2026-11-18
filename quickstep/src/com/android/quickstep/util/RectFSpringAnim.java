@@ -178,8 +178,7 @@ public class RectFSpringAnim extends ReleaseCheck {
         mCos = config instanceof CosSpringConfig;
         mQsb = config instanceof QsbSpringConfig;
         mFrameUpdate = mCos ? this::dispatchFrameUpdate : null;
-        mUseConfiguredSpring = mUseIconSpringConfig || mCos || mQsb
-                || config instanceof WidgetSpringConfig;
+        mUseConfiguredSpring = mCos || mQsb || config instanceof WidgetSpringConfig;
 
         mCurrentY = getTrackedYFromRect(mStartRect);
     }
@@ -320,10 +319,6 @@ public class RectFSpringAnim extends ReleaseCheck {
             yVelocityPxPerS *= 0.4f;
         }
 
-        float durationScale = mUseIconSpringConfig ? OosAppCloseAnimation.DURATION_SCALE : 1f;
-        xVelocityPxPerS /= durationScale;
-        yVelocityPxPerS /= durationScale;
-
         if (mCos) {
             if ((endX - startX) * xVelocityPxPerS < 0) xVelocityPxPerS *= 0.25f;
             if ((endY - startY) * yVelocityPxPerS < 0) yVelocityPxPerS = 0f;
@@ -358,7 +353,7 @@ public class RectFSpringAnim extends ReleaseCheck {
                         .setStartVelocity(yVelocityPxPerS)
                         .addEndListener(onYEndListener);
 
-        float scaleVelocity = velocityPxPerMs.y * minVisibleChange / durationScale;
+        float scaleVelocity = velocityPxPerMs.y * minVisibleChange;
         if (mCos) {
             float span = Math.max(1f, mStartRect.width() - mTargetRect.width());
             float flight = 2.8f * context.getResources().getDisplayMetrics().widthPixels / span;
@@ -413,7 +408,7 @@ public class RectFSpringAnim extends ReleaseCheck {
                 mRectScaleAnim.skipToEnd();
             }
             mCurrentScaleProgress = mRectScaleAnim.getSpring().getFinalPosition();
-            if (mUseIconSpringConfig || mCos) {
+            if (mCos) {
                 mCurrentCenterX = mTargetRect.centerX();
                 mCurrentY = getTrackedYFromRect(mTargetRect);
             }
@@ -690,20 +685,12 @@ public class RectFSpringAnim extends ReleaseCheck {
         }
     }
 
+    /** Use standard spring parameters while identifying the default icon-close path. */
     public static final class IconSpringConfig extends DefaultSpringConfig {
 
         public IconSpringConfig(Context context, DeviceProfile deviceProfile,
                 RectF startRect, RectF targetRect) {
             super(context, deviceProfile, startRect, targetRect);
-            tracking = TRACKING_CENTER;
-            float stiffnessScale = 1f / (OosAppCloseAnimation.DURATION_SCALE
-                    * OosAppCloseAnimation.DURATION_SCALE);
-            stiffnessX = 700f * stiffnessScale;
-            stiffnessY = 900f * stiffnessScale;
-            rectStiffness = 900f * stiffnessScale;
-            dampingX = 0.9f;
-            dampingY = 0.9f;
-            rectDamping = 0.9f;
         }
     }
 

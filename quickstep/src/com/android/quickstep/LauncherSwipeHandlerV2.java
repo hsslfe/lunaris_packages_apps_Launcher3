@@ -54,7 +54,6 @@ import com.android.launcher3.views.FloatingView;
 import com.android.launcher3.widget.LauncherAppWidgetHostView;
 import com.android.quickstep.util.ActiveGestureLog;
 import com.android.quickstep.util.LunarisBarAnimation;
-import com.android.quickstep.util.OosAppCloseAnimation;
 import com.android.quickstep.cos.CosAppAnimation;
 import com.android.quickstep.cos.CosCloseAnimation;
 import com.android.quickstep.cos.CosWorkspaceRevealAnim;
@@ -299,9 +298,7 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
                     float t = Math.max(0f, Math.min(1f, (progress - 0.3f) / 0.65f));
                     return 1f - t * t * (3f - 2f * t);
                 }
-                return shouldUseIconCloseAnimation()
-                        ? OosAppCloseAnimation.getWindowAlpha(progress)
-                        : super.getWindowAlpha(progress);
+                return super.getWindowAlpha(progress);
             }
 
             @Override
@@ -313,13 +310,10 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
                 // We want the icon alpha to be 1 once this threshold is met, so that it can be
                 // seen morphing into the icon shape. But before the threshold, we want to limit
                 // the alpha to reduce the blur effect behind the window.
-                boolean useIconCloseAnimation = shouldUseIconCloseAnimation();
                 boolean cos = mSiblingAnimation != null && mSiblingAnimation.isCos();
-                float iconAlpha = cos ? mSiblingAnimation.getCosFadeProgress() : useIconCloseAnimation
-                        ? OosAppCloseAnimation.getIconAlpha(progress)
+                float iconAlpha = cos ? mSiblingAnimation.getCosFadeProgress()
                         : Interpolators.clampToProgress(progress, 0f, windowAlphaThreshold);
-                float shapeProgressStart = cos ? 0f : isQsb() ? 0.5f : useIconCloseAnimation
-                        ? OosAppCloseAnimation.SHAPE_PROGRESS_START : windowAlphaThreshold;
+                float shapeProgressStart = cos ? 0f : isQsb() ? 0.5f : windowAlphaThreshold;
                 floatingIconView.update(iconAlpha, currentRect, progress, shapeProgressStart,
                         radius, false, overlayAlpha);
             }

@@ -164,7 +164,6 @@ import com.android.quickstep.util.AnimatorBackState;
 import com.android.quickstep.util.BackAnimState;
 import com.android.quickstep.util.CrossDisplayMoveTransition;
 import com.android.quickstep.util.MultiValueUpdateListener;
-import com.android.quickstep.util.OosAppCloseAnimation;
 import com.android.quickstep.cos.CosAppAnimation;
 import com.android.quickstep.cos.CosCloseAnimation;
 import com.android.quickstep.cos.CosWorkspaceRevealAnim;
@@ -1928,8 +1927,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             // We want the window alpha to be 0 once this threshold is met, so that the
             // FloatingIconView can be seen morphing into the icon shape.
             final float windowAlphaThreshold = useCosSpring ? 0f : isQsbTarget ? 0.5f
-                    : useIconSpring
-                    ? OosAppCloseAnimation.SHAPE_PROGRESS_START : 1f - SHAPE_PROGRESS_DURATION;
+                    : 1f - SHAPE_PROGRESS_DURATION;
 
             final float customEndRadius =
                     (launcherView instanceof BubbleTextView btv && btv.isMultiSpan())
@@ -1947,8 +1945,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                         float t = Math.max(0f, Math.min(1f, (progress - 0.3f) / 0.65f));
                         return 1f - t * t * (3f - 2f * t);
                     }
-                    return useIconSpring ? OosAppCloseAnimation.getWindowAlpha(progress)
-                            : super.getWindowAlpha(progress);
+                    return super.getWindowAlpha(progress);
                 }
 
                 @Override
@@ -1965,8 +1962,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                     // We want the icon alpha to be 1 once this threshold is met, so that it can be
                     // seen morphing into the icon shape. But before the threshold, we want to limit
                     // the alpha to reduce the blur effect behind the window.
-                    float iconAlpha = useCosSpring ? anim.getCosFadeProgress() : useIconSpring
-                            ? OosAppCloseAnimation.getIconAlpha(progress)
+                    float iconAlpha = useCosSpring ? anim.getCosFadeProgress()
                             : Interpolators.clampToProgress(progress, 0f, windowAlphaThreshold);
                     finalFloatingIconView.update(iconAlpha, currentRectF, progress,
                             windowAlphaThreshold, getCornerRadius(progress), false);

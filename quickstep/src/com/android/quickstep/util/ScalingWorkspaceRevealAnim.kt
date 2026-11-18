@@ -71,6 +71,10 @@ class ScalingWorkspaceRevealAnim(
         private const val FADE_DURATION_MS = 200L
         private const val SCALE_DURATION_MS = 1000L
         private const val HOTSEAT_FADE_DELAY_MS = 25L
+        private const val ICON_CLOSE_FADE_DURATION_MS = 150L
+        private const val ICON_CLOSE_SCALE_DURATION_MS = 800L
+        private const val ICON_CLOSE_HOTSEAT_FADE_DELAY_MS = 30L
+        private const val ICON_CLOSE_MIN_SIZE = 0.92f
         private const val MAX_ALPHA = 1f
         private const val MIN_ALPHA = 0f
         internal const val MAX_SIZE = 1f
@@ -91,11 +95,26 @@ class ScalingWorkspaceRevealAnim(
             )
 
         val BLUR_INTERPOLATOR = Interpolators.clampToProgress(EMPHASIZED, 0f, 0.6f)
+
+        private val ICON_CLOSE_SCALE_INTERPOLATOR =
+            PathInterpolator(
+                Path().apply {
+                    moveTo(0f, 0f)
+                    cubicTo(0.05f, 0.07f, 0.1f, 0.4f, 0.2f, 0.6f)
+                    cubicTo(0.3f, 0.85f, 0.4f, 1f, 1f, 1f)
+                }
+            )
+        private val ICON_CLOSE_BLUR_INTERPOLATOR =
+            Interpolators.clampToProgress(EMPHASIZED, 0f, 0.666f)
     }
 
     private val isIconClose = siblingAnimation?.isIconCloseAnimation == true
     private val duration =
-        if (isIconClose) OosAppCloseAnimation.WORKSPACE_REVEAL_DURATION_MS else SCALE_DURATION_MS
+        if (isIconClose) ICON_CLOSE_SCALE_DURATION_MS else SCALE_DURATION_MS
+    private val scaleInterpolator =
+        if (isIconClose) ICON_CLOSE_SCALE_INTERPOLATOR else SCALE_INTERPOLATOR
+    private val blurInterpolator =
+        if (isIconClose) ICON_CLOSE_BLUR_INTERPOLATOR else BLUR_INTERPOLATOR
     private val animation = PendingAnimation(duration)
     private var blurLayer: SurfaceControl? = null
     private var surfaceTransactionApplier: SurfaceTransactionApplier =
@@ -133,7 +152,7 @@ class ScalingWorkspaceRevealAnim(
             if (workspace.scaleX != MAX_SIZE) {
                 workspace.scaleX
             } else {
-                MIN_SIZE
+                if (isIconClose) ICON_CLOSE_MIN_SIZE else MIN_SIZE
             }
 
         // Scale the Workspace and Hotseat around the same pivot.
@@ -143,33 +162,35 @@ class ScalingWorkspaceRevealAnim(
             WORKSPACE_SCALE_PROPERTY_FACTORY[SCALE_INDEX_WORKSPACE_STATE],
             fromSize,
             MAX_SIZE,
-            SCALE_INTERPOLATOR,
+            scaleInterpolator,
         )
         animation.addFloat(
             hotseat,
             HOTSEAT_SCALE_PROPERTY_FACTORY[SCALE_INDEX_WORKSPACE_STATE],
             fromSize,
             MAX_SIZE,
-            SCALE_INTERPOLATOR,
+            scaleInterpolator,
         )
 
         if (playAlphaReveal) {
             // Fade in quickly at the beginning of the animation, so the content doesn't look like
             // it's popping into existence out of nowhere.
-            val fadeClamp = FADE_DURATION_MS.toFloat() / duration
-            workspace.alpha = if (isIconClose) 0.85f else MIN_ALPHA
+            val fadeClamp = (if (isIconClose) ICON_CLOSE_FADE_DURATION_MS else FADE_DURATION_MS).toFloat() / duration
+            workspace.alpha = MIN_ALPHA
             animation.setFloat(
                 workspace,
                 VIEW_ALPHA,
                 MAX_ALPHA,
                 Interpolators.clampToProgress(LINEAR, 0f, fadeClamp),
             )
-            hotseat.alpha = if (isIconClose) 0.85f else MIN_ALPHA
+            hotseat.alpha = MIN_ALPHA
             // This needs to use setViewAlpha instead of setFloat (like workspace).
             // This is because hotseat visibility can also be changed based off of alpha in
             // WorkspaceRevealAnim which also calls setViewAlpha.
             // b/428257480 Ideally we should be settings MultiValueAlpha with 2 channels instead.
-            val hotseatDelay = HOTSEAT_FADE_DELAY_MS.toFloat() / duration
+            val hotseatDelay =
+                (if (isIconClose) ICON_CLOSE_HOTSEAT_FADE_DELAY_MS else HOTSEAT_FADE_DELAY_MS)
+                    .toFloat() / duration
             animation.setViewAlpha(
                 hotseat,
                 MAX_ALPHA,
@@ -184,7 +205,7 @@ class ScalingWorkspaceRevealAnim(
         if (playBlur) {
             // Match the Wallpaper depth to the rest of the content.
             depthController = (launcher as? QuickstepLauncher)?.depthController
-            transitionConfig.setInterpolator(StateAnimationConfig.ANIM_DEPTH, SCALE_INTERPOLATOR)
+            transitionConfig.setInterpolator(StateAnimationConfig.ANIM_DEPTH, scaleInterpolator)
             if (blurLayer != null || !playAppLaunchBlur) {
                 depthController?.pauseBlursOnWindows(true)
             }
@@ -205,7 +226,7 @@ class ScalingWorkspaceRevealAnim(
                         launcher.resources.getInteger(R.integer.max_depth_blur_radius)
                     }
                 val blurAnimator = ValueAnimator.ofFloat(1f, 0f)
-                blurAnimator.setInterpolator(BLUR_INTERPOLATOR)
+                blurAnimator.setInterpolator(blurInterpolator)
                 var lastBlurRadius = -1
                 blurAnimator.addUpdateListener {
                     val blurRadius = (maxBlurRadius * blurAnimator.animatedValue as Float).toInt()
@@ -218,7 +239,7 @@ class ScalingWorkspaceRevealAnim(
 
                 transitionConfig.setInterpolator(
                     StateAnimationConfig.ANIM_SCRIM_FADE,
-                    BLUR_INTERPOLATOR,
+                    blurInterpolator,
                 )
                 launcher.workspace.stateTransitionAnimation.setScrim(
                     animation,
