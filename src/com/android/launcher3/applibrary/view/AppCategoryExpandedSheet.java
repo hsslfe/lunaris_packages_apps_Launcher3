@@ -95,12 +95,15 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         setOnClickListener(v -> hide(true));
         if (mCardView != null) {
             mCardView.setOnClickListener(v -> {});
-            // Keep the expanded surface dark with a subtle amount of transparency.
+            // In light mode, match the regular category card surface exactly.
+            // Preserve the existing dark-mode blend and transparency.
             GradientDrawable background = (GradientDrawable) mCardView.getBackground().mutate();
-            int surface = ColorUtils.blendARGB(
-                    Themes.getAttrColor(getContext(), R.attr.allAppsSurfaceLow), Color.BLACK,
-                    Utilities.isDarkTheme(getContext()) ? .40f : .85f);
-            background.setColor(ColorUtils.setAlphaComponent(surface, 217)); // 85% opacity.
+            int surface = Themes.getAttrColor(getContext(), R.attr.allAppsSurfaceLow);
+            if (Utilities.isDarkTheme(getContext())) {
+                surface = ColorUtils.blendARGB(surface, Color.BLACK, .40f);
+                surface = ColorUtils.setAlphaComponent(surface, 217); // 85% opacity.
+            }
+            background.setColor(surface);
         }
 
         if (mGridView != null) {
