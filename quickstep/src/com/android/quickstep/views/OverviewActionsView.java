@@ -446,11 +446,12 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
         clearAllButton.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
         animateButtonPress(clearAllButton, () ->
                 UI_HELPER_EXECUTOR.execute(() -> {
-                    MemoryUtils.releaseMemory();
+                    final boolean accepted = MemoryUtils.releaseMemory();
                     clearAllButton.postDelayed(() -> {
                         mIsPerformingMemoryBoost = false;
                         Toast.makeText(getContext(),
-                                R.string.memory_boost_applied,
+                                accepted ? R.string.memory_boost_applied
+                                         : R.string.memory_boost_failed,
                                 Toast.LENGTH_SHORT).show();
                     }, 500);
                 }));

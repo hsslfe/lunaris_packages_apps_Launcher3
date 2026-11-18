@@ -22,12 +22,14 @@ object MemoryUtils {
     private const val TAG = "MemoryUtils"
 
     @JvmStatic
-    fun releaseMemory() {
-        try {
-            android.app.ActivityManager.getService().releaseMemory(606, 60, false, false)
-            Log.d(TAG, "Memory release triggered successfully")
+    fun releaseMemory(): Boolean {
+        return try {
+            android.app.ActivityManager.getService().releaseMemory(900, 25, false, false)
+            Log.d(TAG, "Memory reclaim request accepted")
+            true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to release memory", e)
+            Log.e(TAG, "Failed to request memory reclaim", e)
+            false
         }
     }
 }

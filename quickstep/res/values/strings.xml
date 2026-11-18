@@ -410,5 +410,6 @@
     <string name="nudge_a11y_image">Nudge image</string>
 
     <!-- Memory Boost -->
-    <string name="memory_boost_applied">Memory optimized</string>
+    <string name="memory_boost_applied">Memory cleanup requested</string>
+    <string name="memory_boost_failed">Memory is already optimized</string>
 </resources>
