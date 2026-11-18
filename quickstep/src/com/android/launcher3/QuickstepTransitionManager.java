@@ -114,7 +114,6 @@ import android.view.View;
 import android.view.ViewRootImpl;
 import android.view.ViewTreeObserver;
 import android.view.WindowManager;
-import android.view.animation.AnimationUtils;
 import android.view.animation.Interpolator;
 import android.view.animation.PathInterpolator;
 import android.window.DesktopModeFlags;
@@ -220,13 +219,14 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
      */
     public static final int STATUS_BAR_TRANSITION_PRE_DELAY = 96;
 
-    public static final long APP_LAUNCH_DURATION = 500;
+    public static final long APP_LAUNCH_DURATION = 480;
 
-    private static final long APP_LAUNCH_ALPHA_DURATION = 50;
+    private static final long APP_LAUNCH_ALPHA_DURATION = 125;
     private static final long APP_LAUNCH_ALPHA_START_DELAY = 25;
 
     public static final int ANIMATION_NAV_FADE_IN_DURATION = 266;
     public static final int ANIMATION_NAV_FADE_OUT_DURATION = 133;
+    private static final int DEFAULT_APP_NAV_FADE_OUT_DURATION = 160;
     public static final long ANIMATION_DELAY_NAV_FADE_IN =
             APP_LAUNCH_DURATION - ANIMATION_NAV_FADE_IN_DURATION;
     public static final Interpolator NAV_FADE_IN_INTERPOLATOR =
@@ -269,9 +269,10 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         WORKSPACE_PUSHBACK_INTERPOLATOR = new PathInterpolator(pushbackPath);
     }
 
-    private static final int WORKSPACE_PUSHBACK_DURATION = (int) APP_LAUNCH_DURATION;
+    private static final int WORKSPACE_PUSHBACK_DURATION = 500;
 
-    private static final float WORKSPACE_PUSHBACK_SCALE = ScalingWorkspaceRevealAnim.MIN_SIZE;
+    // Match the workspace scale at the start of the default app-close reveal.
+    private static final float WORKSPACE_PUSHBACK_SCALE = 0.92f;
 
     private static final float WORKSPACE_PUSHBACK_ALPHA = 0.85f;
 
@@ -381,9 +382,9 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
         mCosAppAnimations = CosAppAnimation.isEnabled(launcher);
         mOpeningXInterpolator = mCosAppAnimations ? CosAppAnimation.OPEN
-                : AnimationUtils.loadInterpolator(launcher, R.interpolator.app_open_x);
+                : new PathInterpolator(0.2f, 0f, 0f, 1f);
         mOpeningInterpolator = mCosAppAnimations ? CosAppAnimation.OPEN
-                : AnimationUtils.loadInterpolator(launcher, R.interpolator.emphasized_interpolator);
+                : new PathInterpolator(0.2f, 0f, 0f, 1f);
         mCoordinateTransfer = new RemoteAnimationCoordinateTransfer(mLauncher);
         mLatencyTracker = LatencyTracker.getInstance(launcher);
 
@@ -752,6 +753,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 viewsToAnimate.add(hotseat);
             }
 
+            final boolean standardAppOpening = isAppOpening && !mCosAppAnimations;
             final float pushbackScale = isAppOpening
                     ? (mCosAppAnimations ? CosAppAnimation.HOME_SCALE : WORKSPACE_PUSHBACK_SCALE) : 1f;
             final float pushbackAlpha = isAppOpening
@@ -770,18 +772,24 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 float[] alpha = new float[]{view.getAlpha(), pushbackAlpha};
 
                 ObjectAnimator scaleAnim = ObjectAnimator.ofFloat(view, SCALE_PROPERTY, scale)
-                        .setDuration(mCosAppAnimations
-                                ? CosAppAnimation.LAUNCH_DURATION : WORKSPACE_PUSHBACK_DURATION);
-                scaleAnim.setInterpolator(mCosAppAnimations
-                        ? CosAppAnimation.OPEN : WORKSPACE_PUSHBACK_INTERPOLATOR);
+                        .setDuration(standardAppOpening ? CONTENT_SCALE_DURATION
+                                : mCosAppAnimations ? CosAppAnimation.LAUNCH_DURATION
+                                        : WORKSPACE_PUSHBACK_DURATION);
+                scaleAnim.setInterpolator(standardAppOpening ? DECELERATE_1_5
+                        : mCosAppAnimations ? CosAppAnimation.OPEN
+                                : WORKSPACE_PUSHBACK_INTERPOLATOR);
                 launcherAnimator.play(scaleAnim);
 
-                ObjectAnimator alphaAnim = ObjectAnimator.ofFloat(view, View.ALPHA, alpha)
-                        .setDuration(mCosAppAnimations
-                                ? CosAppAnimation.LAUNCH_DURATION : WORKSPACE_PUSHBACK_DURATION);
-                alphaAnim.setInterpolator(mCosAppAnimations
-                        ? CosAppAnimation.OPEN : WORKSPACE_PUSHBACK_ALPHA_INTERPOLATOR);
-                launcherAnimator.play(alphaAnim);
+                // Keep the standard home-to-app transition opaque as it scales back.
+                // Other animation modes retain their existing alpha timing.
+                if (!standardAppOpening) {
+                    ObjectAnimator alphaAnim = ObjectAnimator.ofFloat(view, View.ALPHA, alpha)
+                            .setDuration(mCosAppAnimations
+                                    ? CosAppAnimation.LAUNCH_DURATION : WORKSPACE_PUSHBACK_DURATION);
+                    alphaAnim.setInterpolator(mCosAppAnimations
+                            ? CosAppAnimation.OPEN : WORKSPACE_PUSHBACK_ALPHA_INTERPOLATOR);
+                    launcherAnimator.play(alphaAnim);
+                }
             });
 
             // Capture all starting values before cancelling: a shared reveal animation resets
@@ -1005,9 +1013,11 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                                     : APP_LAUNCH_ALPHA_DURATION,
                             launchDuration));
 
-        final Interpolator cornerInterpolator = new PathInterpolator(0.2f, 0f, 0.2f, 1f);
-        FloatProp mWindowRadius = new FloatProp(initialWindowRadius,
-                getWindowCornerRadius(mLauncher), mOpeningInterpolator);
+            final Interpolator cornerInterpolator =
+                    new PathInterpolator(0.2f, 0f, 0.2f, 1f);
+            FloatProp mWindowRadius = new FloatProp(initialWindowRadius,
+                    getWindowCornerRadius(mLauncher),
+                    mCosAppAnimations ? mOpeningInterpolator : cornerInterpolator);
             FloatProp mShadowRadius = new FloatProp(0, finalShadowRadius,
                     mOpeningInterpolator);
 
@@ -1021,8 +1031,9 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                     mOpeningInterpolator);
 
             FloatProp mNavFadeOut = new FloatProp(1f, 0f, clampToDuration(
-                    NAV_FADE_OUT_INTERPOLATOR, 0, ANIMATION_NAV_FADE_OUT_DURATION,
-                    launchDuration));
+                    NAV_FADE_OUT_INTERPOLATOR, mCosAppAnimations ? 0 : 20,
+                    mCosAppAnimations ? ANIMATION_NAV_FADE_OUT_DURATION
+                            : DEFAULT_APP_NAV_FADE_OUT_DURATION, launchDuration));
             FloatProp mNavFadeIn = new FloatProp(0f, 1f, clampToDuration(
                     NAV_FADE_IN_INTERPOLATOR, mCosAppAnimations
                             ? launchDuration - ANIMATION_NAV_FADE_IN_DURATION
@@ -1030,9 +1041,9 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                     ANIMATION_NAV_FADE_IN_DURATION, launchDuration));
 
             FloatProp mBlurRadius = new FloatProp(0f, mMaxBlurRadius,
-                    mCosAppAnimations ? CosAppAnimation.OPEN : APP_LAUNCH_BLUR_INTERPOLATOR);
+                    mCosAppAnimations ? CosAppAnimation.OPEN : DECELERATE_1_5);
             FloatProp mBlurScrimAlpha = new FloatProp(0f, scrimAlpha,
-                    mCosAppAnimations ? CosAppAnimation.OPEN : APP_LAUNCH_SCRIM_INTERPOLATOR);
+                    mCosAppAnimations ? CosAppAnimation.OPEN : DECELERATE_1_5);
 
             int mLastBlurRadius = -1;
 
