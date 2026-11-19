@@ -125,6 +125,11 @@ public class NoButtonNavbarToOverviewTouchController extends PortraitStatesTouch
     }
 
     @Override
+    protected boolean isNavigationBarGesture(MotionEvent ev) {
+        return mDidTouchStartInNavBar;
+    }
+
+    @Override
     protected LauncherState getTargetState(LauncherState fromState, boolean isDragTowardPositive) {
         if (fromState == NORMAL && mDidTouchStartInNavBar) {
             return HINT_STATE;

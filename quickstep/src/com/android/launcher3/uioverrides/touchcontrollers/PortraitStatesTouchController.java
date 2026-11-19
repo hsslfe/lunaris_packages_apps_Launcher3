@@ -62,10 +62,15 @@ public class PortraitStatesTouchController extends AbstractStateChangeTouchContr
 
     @Override
     protected boolean canInterceptTouch(MotionEvent ev) {
+        // Keep regular App Library swipes out of the navigation area without blocking
+        // the dedicated navbar-to-Overview controller, which inherits this class.
         if (mLauncher.isInState(NORMAL)
                 && LauncherPrefs.APP_LIBRARY_ENABLED.get(mLauncher)
                 && LauncherPrefs.APP_LIBRARY_HIDE_APP_DRAWER.get(mLauncher)
-                && AppLibraryTouchController.isTouchInNavigationRegion(mLauncher, ev)) return false;
+                && AppLibraryTouchController.isTouchInNavigationRegion(mLauncher, ev)
+                && !isNavigationBarGesture(ev)) {
+            return false;
+        }
         if (mLauncher.isInState(ALL_APPS) && !mLauncher.canOpenAllApps()) {
             return false;
         }
@@ -102,6 +107,14 @@ public class PortraitStatesTouchController extends AbstractStateChangeTouchContr
             return false;
         }
         return true;
+    }
+
+    /**
+     * Subclasses handling system navigation gestures can opt out of the App Library's
+     * reserved navigation region for those gestures only.
+     */
+    protected boolean isNavigationBarGesture(MotionEvent ev) {
+        return false;
     }
 
     @Override
