@@ -53,4 +53,6 @@
         android:layout_marginBottom="@dimen/all_apps_page_indicator_bottom_margin"
         android:visibility="gone" />
     <include layout="@layout/all_apps_fast_scroller" />
+
+    <include layout="@layout/all_apps_library_tabs" />
 </merge>

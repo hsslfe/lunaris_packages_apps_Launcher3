@@ -115,7 +115,8 @@ public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, Strin
         LauncherAppState.INSTANCE.executeIfCreated(app -> app.setNeedsRestart());
     }
     
-    if (LauncherPrefs.DRAWER_LIST.getSharedPrefKey().equals(key)) {
+    if (LauncherPrefs.DRAWER_LIST.getSharedPrefKey().equals(key)
+            || LauncherPrefs.APP_DRAWER_LIBRARY_TABS.getSharedPrefKey().equals(key)) {
         // Trigger a refresh of the app list without requiring a restart
         // This will cause onAppsUpdated() to be called, which will recategorize apps
         try {
@@ -153,6 +154,7 @@ public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, Strin
         private ListPreference mSearchPlacementPref;
         private ListPreference mDrawerStylePref;
         private Preference mOpenKeyboardPref;
+        private Preference mLibraryTabsPref;
 
         @Override
         public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -173,6 +175,9 @@ public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, Strin
             mSearchPlacementPref = screen.findPreference(KEY_SEARCH_PLACEMENT);
             mDrawerStylePref = screen.findPreference(KEY_APP_DRAWER_STYLE);
             mOpenKeyboardPref = screen.findPreference(KEY_OPEN_KEYBOARD);
+            mLibraryTabsPref = screen.findPreference(
+                    LauncherPrefs.APP_DRAWER_LIBRARY_TABS.getSharedPrefKey());
+            updateLibraryTabsPreference();
             updateOpenKeyboardEnabled();
             updateDrawerStyleSummary();
 
@@ -283,6 +288,7 @@ public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, Strin
         public void onResume() {
             super.onResume();
             wireSearchPreferences(getPreferenceScreen());
+            updateLibraryTabsPreference();
 
             if (mRestartOnResume) {
                 recreateActivityNow();
@@ -298,6 +304,9 @@ public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, Strin
 
         @Override
         public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
+            if (LauncherPrefs.DRAWER_LIST.getSharedPrefKey().equals(key)) {
+                updateLibraryTabsPreference();
+            }
             if (LauncherPrefs.SEARCH_ENGINE.getSharedPrefKey().equals(key)) {
                 wireSearchPreferences(getPreferenceScreen());
             }
@@ -305,6 +314,16 @@ public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, Strin
                 updateOpenKeyboardEnabled();
                 updateDrawerStyleSummary();
             }
+        }
+
+        private void updateLibraryTabsPreference() {
+            if (mLibraryTabsPref == null) {
+                return;
+            }
+            boolean appLibrarySelected = !LauncherPrefs.DRAWER_LIST.get(requireContext());
+            mLibraryTabsPref.setEnabled(appLibrarySelected);
+            mLibraryTabsPref.setSummary(appLibrarySelected ? R.string.app_drawer_library_tabs_summary
+                    : R.string.app_drawer_library_tabs_unavailable);
         }
 
         private void updateOpenKeyboardEnabled() {

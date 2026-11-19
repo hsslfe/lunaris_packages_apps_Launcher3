@@ -29,6 +29,14 @@
             android:persistent="true"
             launcher:iconSpaceReserved="false" />
 
+        <SwitchPreferenceCompat
+            android:key="pref_app_drawer_library_tabs"
+            android:title="@string/app_drawer_library_tabs_title"
+            android:summary="@string/app_drawer_library_tabs_unavailable"
+            android:defaultValue="false"
+            android:persistent="true"
+            launcher:iconSpaceReserved="false" />
+
     </PreferenceCategory>
 
     <ListPreference

@@ -502,6 +502,11 @@
     <!-- Drawer list preference -->
     <string name="drawer_list_title">Layout</string>
     <string name="drawer_list_summary">Choose the default app list or an app library with category folders and favorite apps</string>
+    <string name="app_drawer_library_tabs_title">Apps and categories in app drawer</string>
+    <string name="app_drawer_library_tabs_unavailable">Select App Library above to enable this option.</string>
+    <string name="app_drawer_library_tabs_summary">Show All and Categories tabs in the app drawer.</string>
+    <string name="app_drawer_tab_all">All</string>
+    <string name="app_drawer_tab_categories">Categories</string>
     <string name="feed_default">Default</string>
     <string name="caddy_beta">App library</string>
 

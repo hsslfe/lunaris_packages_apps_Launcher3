@@ -39,7 +39,6 @@ import androidx.recyclerview.widget.DiffUtil;
 
 import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.Flags;
-import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 import com.android.launcher3.allapps.BaseAllAppsAdapter.AdapterItem;
 import com.android.launcher3.model.data.AppInfo;
@@ -115,6 +114,7 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
     private BaseAllAppsAdapter mAdapter;
     private AppInfoComparator mAppNameComparator;
     private final CaddyAppSuggestions mCaddySuggestions = new CaddyAppSuggestions();
+    private boolean mAppLibrary;
     private int mNumAppsPerRowAllApps;
     private int mNumAppRowsInAdapter;
     private Predicate<ItemInfo> mItemFilter;
@@ -146,6 +146,14 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
     /** Set the number of apps per row when device profile changes. */
     public void setNumAppsPerRowAllApps(int numAppsPerRow) {
         mNumAppsPerRowAllApps = numAppsPerRow;
+    }
+
+    void setAppLibrary(boolean appLibrary) {
+        mAppLibrary = appLibrary;
+    }
+
+    boolean isAppLibrary() {
+        return mAppLibrary;
     }
 
     public void updateItemFilter(Predicate<ItemInfo> itemFilter) {
@@ -322,12 +330,10 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
                                     R.string.work_profile_edu_section), 0));
                     Log.d(TAG, "Adding FastScrollSection for work edu card.");
                 }
-                Context context = mActivityContext.asContext();
-                boolean useListViewModel = LauncherPrefs.INSTANCE.get(context).get(LauncherPrefs.DRAWER_LIST);
-                if (useListViewModel) {
-                    position = addAppsWithSections(mApps, position);
-                } else {
+                if (mAppLibrary) {
                     position = addAppLibrary(mApps, position);
+                } else {
+                    position = addAppsWithSections(mApps, position);
                 }
             }
             if (Flags.enablePrivateSpace()) {
@@ -535,7 +541,7 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
 
     public void refreshCaddySuggestions() {
         Context context = mActivityContext.asContext();
-        if (LauncherPrefs.DRAWER_LIST.get(context) || hasSearchResults() || mApps.isEmpty()
+        if (!mAppLibrary || hasSearchResults() || mApps.isEmpty()
                 || (mWorkProviderManager != null && !mWorkProviderManager.shouldShowWorkApps())) {
             return;
         }

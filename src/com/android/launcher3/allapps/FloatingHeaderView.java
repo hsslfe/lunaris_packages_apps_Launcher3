@@ -19,6 +19,7 @@ import static com.android.launcher3.allapps.FloatingHeaderRow.NO_ROWS;
 
 import android.animation.ValueAnimator;
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.util.ArrayMap;
@@ -34,7 +35,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.android.launcher3.Flags;
 import com.android.launcher3.Insettable;
-import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 import com.android.launcher3.allapps.ActivityAllAppsContainerView.AdapterHolder;
 import com.android.launcher3.util.PluginManagerWrapper;
@@ -243,8 +243,7 @@ public class FloatingHeaderView extends LinearLayout implements
     }
 
     void setup(AllAppsRecyclerView mainRV, AllAppsRecyclerView workRV, SearchRecyclerView searchRV,
-            int activeRV, boolean tabsHidden) {
-        boolean appLibrary = !LauncherPrefs.DRAWER_LIST.get(getContext());
+            int activeRV, boolean tabsHidden, boolean appLibrary) {
         if (mAppLibrary != appLibrary) {
             mAppLibrary = appLibrary;
             requestLayout();
@@ -293,6 +292,13 @@ public class FloatingHeaderView extends LinearLayout implements
                 child.layout(0, 0, 0, 0);
             }
         }
+    }
+
+    @Override
+    protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+        // App Library supplies its own favorites. Profile tabs are the only drawer header content
+        // it needs, even if pinned apps or predictions rebind while the library is open.
+        return (!mAppLibrary || child == mTabLayout) && super.drawChild(canvas, child, drawingTime);
     }
 
     /** Whether this header has been set up previously. */
