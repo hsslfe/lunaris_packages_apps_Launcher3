@@ -32,8 +32,11 @@ import static com.android.launcher3.views.RecyclerViewFastScroller.FastScrollerL
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
+import static com.android.app.animation.Interpolators.SCROLL;
+
 import android.animation.ValueAnimator;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Outline;
@@ -60,8 +63,8 @@ import android.view.ViewGroup;
 import android.view.ViewGroup.MarginLayoutParams;
 import android.view.ViewOutlineProvider;
 import android.view.WindowInsets;
-import android.view.animation.DecelerateInterpolator;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.RelativeLayout.LayoutParams;
 
@@ -98,6 +101,7 @@ import com.android.launcher3.recyclerview.AllAppsRecyclerViewPool;
 import com.android.launcher3.util.ItemInfoMatcher;
 import com.android.launcher3.util.Preconditions;
 import com.android.launcher3.util.Themes;
+import com.android.launcher3.util.SpringEdgeEffectFactory;
 import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.pageindicators.PageIndicatorDots;
 import com.android.launcher3.views.BaseDragLayer;
@@ -192,6 +196,11 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
     private float mDrawerTabSwipeStartY;
     private boolean mTrackDrawerTabSwipe;
     private boolean mDrawerTabSwipeIntercepted;
+    private boolean mRebindingDrawerTab;
+    private int mDrawerTransitionGeneration;
+    @Nullable private View mDrawerIncomingContent;
+    @Nullable private ImageView mDrawerOutgoingSnapshot;
+    @Nullable private Bitmap mDrawerOutgoingBitmap;
     private boolean mShowFastScroller;
     private PageIndicatorDots mOneUiPageIndicator;
     @Nullable private OneUiPagedAllAppsView mOneUiPagedView;
@@ -392,6 +401,8 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
 
     @Override
     protected void onDetachedFromWindow() {
+        mDrawerTransitionGeneration++;
+        clearDrawerContentTransition();
         super.onDetachedFromWindow();
         mActivityContext.removeOnDeviceProfileChangeListener(this);
         for (AdapterHolder holder : mAH) {
@@ -403,6 +414,13 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
     public void onWindowFocusChanged(boolean hasWindowFocus) {
         super.onWindowFocusChanged(hasWindowFocus);
         if (hasWindowFocus) refreshCaddySuggestions();
+    }
+
+    @Override
+    public RecyclerView.EdgeEffectFactory createEdgeEffectFactory() {
+        // The parent normally proxies TOP overscroll to a glow. Use the same
+        // Lunaris spring physics for both TOP and BOTTOM in the app drawer.
+        return new SpringEdgeEffectFactory();
     }
 
     public void refreshCaddySuggestions() {
@@ -577,6 +595,8 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
      */
     public void reset(boolean animate, boolean exitSearch, boolean clearScrim) {
         if (clearScrim && exitSearch) {
+            mDrawerTransitionGeneration++;
+            clearDrawerContentTransition();
             selectDrawerTab(false, false);
         }
         if (mOneUiPagedView != null) {
@@ -1202,18 +1222,21 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
 
     private void layoutDrawerTabs(String searchPlacement) {
         removeCustomRules(mDrawerTabs);
-        LayoutParams layoutParams = (LayoutParams) mDrawerTabs.getLayoutParams();
-        int gap = getResources().getDimensionPixelSize(R.dimen.all_apps_tabs_margin_top);
+        LayoutParams params = (LayoutParams) mDrawerTabs.getLayoutParams();
+        int gap = getResources().getDimensionPixelSize(
+                R.dimen.all_apps_library_tabs_search_gap);
         if (!isSearchBarFloating() && "top".equals(searchPlacement)) {
-            layoutParams.addRule(RelativeLayout.BELOW, R.id.search_container_all_apps);
-            layoutParams.topMargin = gap;
+            // For an in-panel search box, RelativeLayout BELOW supplies its height.
+            params.addRule(RelativeLayout.BELOW, R.id.search_container_all_apps);
         } else {
-            layoutParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
-            // Preserve the measured floating-search offset when switching drawer tabs.
-            layoutParams.topMargin = isSearchBarFloating() && "top".equals(searchPlacement)
-                    ? Math.max(layoutParams.topMargin, gap) : gap;
+            params.addRule(RelativeLayout.ALIGN_PARENT_TOP);
         }
-        mDrawerTabs.setLayoutParams(layoutParams);
+        // Never inherit a stale margin from the previous search placement or tab.
+        params.topMargin = gap;
+        mDrawerTabs.setLayoutParams(params);
+        if (isSearchBarFloating()) {
+            post(this::updateFloatingDrawerTabsPosition);
+        }
     }
 
     @Override
@@ -1223,21 +1246,23 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
     }
 
     private void updateFloatingDrawerTabsPosition() {
-        if (!mDrawerTabsEnabled || !isInAllApps() || !isSearchBarFloating()
-                || !"top".equals(getSearchBarPlacement())
+        if (!mDrawerTabsEnabled || !isSearchBarFloating()
                 || mDrawerTabs.getVisibility() != VISIBLE
                 || mSearchContainer == null || !mSearchContainer.isLaidOut()
                 || mSearchContainer.getVisibility() != VISIBLE) {
             return;
         }
-
-        // Floating search is parented to the DragLayer, not to this RelativeLayout.
-        // Locate its actual bottom in screen coordinates so the tabs never overlap it.
+        // The floating search bar lives in the DragLayer. Only follow it when
+        // actually displayed near the TOP, never when it is docked at the bottom.
         int[] searchLocation = new int[2];
         int[] drawerLocation = new int[2];
         mSearchContainer.getLocationOnScreen(searchLocation);
         getLocationOnScreen(drawerLocation);
-        int gap = getResources().getDimensionPixelSize(R.dimen.all_apps_tabs_margin_top);
+        if (searchLocation[1] >= drawerLocation[1] + getHeight() / 2) {
+            return;
+        }
+        int gap = getResources().getDimensionPixelSize(
+                R.dimen.all_apps_library_tabs_search_gap);
         int topMargin = Math.max(gap,
                 searchLocation[1] + mSearchContainer.getHeight() - drawerLocation[1] + gap);
         LayoutParams params = (LayoutParams) mDrawerTabs.getLayoutParams();
@@ -1834,7 +1859,9 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
                 ? VISIBLE : GONE);
         mAllTab.setSelected(!mCategoriesSelected);
         mCategoriesTab.setSelected(mCategoriesSelected);
-        mDrawerTabsView.setCategoriesSelected(mCategoriesSelected, false);
+        if (!mRebindingDrawerTab) {
+            mDrawerTabsView.setCategoriesSelected(mCategoriesSelected, false);
+        }
         if (isSearching()) {
             getSearchRecyclerView().setVisibility(VISIBLE);
             getAppsRecyclerViewContainer().setVisibility(GONE);
@@ -1880,24 +1907,120 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         if (!mDrawerTabsEnabled || mCategoriesSelected == categories) {
             return;
         }
-        boolean shouldAnimate = animate && isInAllApps()
-                && mDrawerTabs.getVisibility() == VISIBLE;
-        mCategoriesSelected = categories;
-        mDrawerTabsView.setCategoriesSelected(categories, shouldAnimate);
-        rebindAdapters();
+        mDrawerTransitionGeneration++;
+        final int generation = mDrawerTransitionGeneration;
+        clearDrawerContentTransition();
 
-        if (shouldAnimate) {
-            // The tab mode has a different adapter and may use a different grid style.
-            // Animate only the freshly rebound content; leave the search bar and tabs fixed.
-            View content = getAppsRecyclerViewContainer();
-            content.animate().cancel();
-            float distance = getResources().getDimension(
-                    R.dimen.all_apps_library_tab_content_slide);
-            float direction = (categories ? 1f : -1f) * (isLayoutRtl() ? -1f : 1f);
-            content.setTranslationX(distance * direction);
-            content.setAlpha(0.65f);
-            content.animate().translationX(0f).alpha(1f).setDuration(240)
-                    .setInterpolator(new DecelerateInterpolator()).start();
+        boolean shouldAnimate = animate && isInAllApps()
+                && mDrawerTabs.getVisibility() == VISIBLE
+                && ValueAnimator.areAnimatorsEnabled();
+        View previousContent = getAppsRecyclerViewContainer();
+        Bitmap previousPage = shouldAnimate ? snapshotDrawerContent(previousContent) : null;
+        int previousLeft = previousContent.getLeft();
+        int previousTop = previousContent.getTop();
+
+        mCategoriesSelected = categories;
+        // The existing mode switch must reconfigure the grid, categories and work
+        // profile. Rebind first rather than blocking an already-running pill animation.
+        mRebindingDrawerTab = true;
+        try {
+            rebindAdapters();
+        } finally {
+            mRebindingDrawerTab = false;
+        }
+
+        if (!shouldAnimate) {
+            if (previousPage != null) previousPage.recycle();
+            mDrawerTabsView.setCategoriesSelected(categories, false);
+            return;
+        }
+
+        View incoming = getAppsRecyclerViewContainer();
+        mDrawerIncomingContent = incoming;
+        if (previousPage != null) {
+            ImageView outgoing = new ImageView(getContext());
+            outgoing.setImageBitmap(previousPage);
+            outgoing.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            outgoing.layout(previousLeft, previousTop, previousLeft + previousPage.getWidth(),
+                    previousTop + previousPage.getHeight());
+            mDrawerOutgoingBitmap = previousPage;
+            mDrawerOutgoingSnapshot = outgoing;
+            getOverlay().add(outgoing);
+            // Keep the outgoing page visible while the replacement is laid out.
+            incoming.setVisibility(INVISIBLE);
+        }
+
+        post(() -> {
+            if (generation != mDrawerTransitionGeneration || !mDrawerTabsEnabled
+                    || !isInAllApps() || incoming.getParent() != this) {
+                if (generation == mDrawerTransitionGeneration) {
+                    clearDrawerContentTransition();
+                    mDrawerTabsView.setCategoriesSelected(mCategoriesSelected, false);
+                }
+                return;
+            }
+
+            final float width = Math.max(getWidth(), incoming.getWidth());
+            final float direction = (categories ? 1f : -1f) * (isLayoutRtl() ? -1f : 1f);
+            final int duration = getResources().getInteger(
+                    R.integer.config_pageSnapAnimationDuration);
+            // SCROLL and this duration are the exact pager motion curve and timing
+            // used by Launcher3's Workspace/PagedView.
+            incoming.setTranslationX(width * direction);
+            incoming.setAlpha(1f);
+            incoming.setVisibility(VISIBLE);
+            mDrawerTabsView.setCategoriesSelected(categories, true);
+            incoming.animate().translationX(0f).setDuration(duration)
+                    .setInterpolator(SCROLL)
+                    .withEndAction(() -> {
+                        if (generation == mDrawerTransitionGeneration) {
+                            clearDrawerContentTransition();
+                        }
+                    }).start();
+
+            if (mDrawerOutgoingSnapshot != null) {
+                mDrawerOutgoingSnapshot.animate().translationX(-width * direction)
+                        .setDuration(duration).setInterpolator(SCROLL).start();
+            }
+        });
+    }
+
+    @Nullable
+    private Bitmap snapshotDrawerContent(View content) {
+        int width = content.getWidth();
+        int height = content.getHeight();
+        // Temporary only: avoid allocating a large bitmap on tablets or foldables.
+        if (!content.isLaidOut() || width <= 0 || height <= 0
+                || (long) width * height > 3_000_000L) {
+            return null;
+        }
+        try {
+            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            content.draw(new Canvas(bitmap));
+            return bitmap;
+        } catch (OutOfMemoryError error) {
+            // Still allow navigation if the device cannot afford a snapshot.
+            return null;
+        }
+    }
+
+    private void clearDrawerContentTransition() {
+        if (mDrawerIncomingContent != null) {
+            mDrawerIncomingContent.animate().cancel();
+            mDrawerIncomingContent.setTranslationX(0f);
+            mDrawerIncomingContent.setAlpha(1f);
+            mDrawerIncomingContent.setVisibility(VISIBLE);
+            mDrawerIncomingContent = null;
+        }
+        if (mDrawerOutgoingSnapshot != null) {
+            mDrawerOutgoingSnapshot.animate().cancel();
+            getOverlay().remove(mDrawerOutgoingSnapshot);
+            mDrawerOutgoingSnapshot.setImageDrawable(null);
+            mDrawerOutgoingSnapshot = null;
+        }
+        if (mDrawerOutgoingBitmap != null) {
+            mDrawerOutgoingBitmap.recycle();
+            mDrawerOutgoingBitmap = null;
         }
     }
 

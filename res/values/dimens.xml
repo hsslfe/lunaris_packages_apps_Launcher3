@@ -155,8 +155,10 @@
     <dimen name="all_apps_tabs_focus_border">3dp</dimen>
     <dimen name="all_apps_tabs_focus_padding">2dp</dimen>
     <dimen name="all_apps_tabs_margin_top">8dp</dimen>
-    <dimen name="all_apps_library_all_tab_top_adjustment">20dp</dimen>
-    <dimen name="all_apps_library_tab_content_slide">20dp</dimen>
+    <!-- Visible separation of the search bar and the segmented selector. -->
+    <dimen name="all_apps_library_tabs_search_gap">16dp</dimen>
+    <!-- Align the first All icon 1dp below the Categories suggestion card top. -->
+    <dimen name="all_apps_library_all_tab_top_adjustment">19dp</dimen>
     <dimen name="all_apps_divider_height">2dp</dimen>
     <dimen name="all_apps_divider_width">128dp</dimen>
     <dimen name="all_apps_content_fade_in_offset">150dp</dimen>
