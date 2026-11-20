@@ -408,10 +408,13 @@ public class FloatingHeaderView extends LinearLayout implements
 
     protected void applyVerticalMove() {
         int uncappedTranslationY = mTranslationY;
-        // Pinned and plugin header rows are outside the RecyclerView. Mirror its
-        // current spring displacement so they bounce in sync with suggested apps.
-        int springOffsetY = mCurrentRV == null ? 0
-                : Math.round(mCurrentRV.getTranslationY());
+        // Pinned and plugin rows live outside the RecyclerView. Follow its
+        // vertical spring only while the app list is at its TOP edge.
+        // The bottom-edge rebound can momentarily cross zero, so using the
+        // translation sign alone can reveal offscreen pinned header content.
+        boolean atTopEdge = mCurrentRV != null && !mCurrentRV.canScrollVertically(-1);
+        int springOffsetY = atTopEdge
+                ? Math.round(mCurrentRV.getTranslationY()) : 0;
         mTranslationY = Math.max(mTranslationY, -mMaxTranslation);
 
         boolean rowsScrolledOut = mFloatingRowsCollapsed || mAppLibrary
