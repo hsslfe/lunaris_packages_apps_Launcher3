@@ -1016,13 +1016,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
                 // Only the Search adapter needs padding when there are tabs but no floating rows.
                 adapterHolder.mPadding.top = 0;
             } else {
-                // The first All-tab icon has more internal vertical inset than Caddy's
-                // suggested-app card. Align their visual top edges without moving Categories.
-                adapterHolder.mPadding.top = i == AdapterHolder.MAIN && mDrawerTabsEnabled
-                        && !mIsAppLibrary
-                        ? Math.max(0, padding - getResources().getDimensionPixelSize(
-                                R.dimen.all_apps_library_all_tab_top_adjustment))
-                        : padding;
+                adapterHolder.mPadding.top = padding;
             }
             adapterHolder.applyPadding();
             if (adapterHolder.mRecyclerView != null) {
