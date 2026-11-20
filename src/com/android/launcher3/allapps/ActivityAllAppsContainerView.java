@@ -60,6 +60,7 @@ import android.view.ViewGroup;
 import android.view.ViewGroup.MarginLayoutParams;
 import android.view.ViewOutlineProvider;
 import android.view.WindowInsets;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.Button;
 import android.widget.RelativeLayout;
 import android.widget.RelativeLayout.LayoutParams;
@@ -183,6 +184,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
     private boolean mDrawerTabsEnabled;
     private boolean mCategoriesSelected;
     private View mDrawerTabs;
+    private AppDrawerTabsView mDrawerTabsView;
     private Button mAllTab;
     private Button mCategoriesTab;
     private final int mDrawerTabSwipeSlop;
@@ -295,6 +297,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
 
         getLayoutInflater().inflate(R.layout.all_apps_content, this);
         mDrawerTabs = findViewById(R.id.all_apps_library_tabs);
+        mDrawerTabsView = mDrawerTabs.findViewById(R.id.all_apps_library_tabs_view);
         mAllTab = mDrawerTabs.findViewById(R.id.all_apps_library_tab_all);
         mCategoriesTab = mDrawerTabs.findViewById(R.id.all_apps_library_tab_categories);
         mAllTab.setOnClickListener(view -> selectDrawerTab(false));
@@ -381,6 +384,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
             // so can't remove its views during that dispatch.
             mActivityContext.getDragLayer().addView(mSearchContainer);
             mSearchUiDelegate.onInitializeSearchBar();
+            post(this::updateFloatingDrawerTabsPosition);
         }
         mActivityContext.addOnDeviceProfileChangeListener(this);
         refreshCaddySuggestions();
@@ -573,7 +577,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
      */
     public void reset(boolean animate, boolean exitSearch, boolean clearScrim) {
         if (clearScrim && exitSearch) {
-            selectDrawerTab(false);
+            selectDrawerTab(false, false);
         }
         if (mOneUiPagedView != null) {
             mOneUiPagedView.setCurrentPage(0);
@@ -992,7 +996,13 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
                 // Only the Search adapter needs padding when there are tabs but no floating rows.
                 adapterHolder.mPadding.top = 0;
             } else {
-                adapterHolder.mPadding.top = padding;
+                // The first All-tab icon has more internal vertical inset than Caddy's
+                // suggested-app card. Align their visual top edges without moving Categories.
+                adapterHolder.mPadding.top = i == AdapterHolder.MAIN && mDrawerTabsEnabled
+                        && !mIsAppLibrary
+                        ? Math.max(0, padding - getResources().getDimensionPixelSize(
+                                R.dimen.all_apps_library_all_tab_top_adjustment))
+                        : padding;
             }
             adapterHolder.applyPadding();
             if (adapterHolder.mRecyclerView != null) {
@@ -1193,12 +1203,48 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
     private void layoutDrawerTabs(String searchPlacement) {
         removeCustomRules(mDrawerTabs);
         LayoutParams layoutParams = (LayoutParams) mDrawerTabs.getLayoutParams();
+        int gap = getResources().getDimensionPixelSize(R.dimen.all_apps_tabs_margin_top);
         if (!isSearchBarFloating() && "top".equals(searchPlacement)) {
             layoutParams.addRule(RelativeLayout.BELOW, R.id.search_container_all_apps);
+            layoutParams.topMargin = gap;
         } else {
             layoutParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+            // Preserve the measured floating-search offset when switching drawer tabs.
+            layoutParams.topMargin = isSearchBarFloating() && "top".equals(searchPlacement)
+                    ? Math.max(layoutParams.topMargin, gap) : gap;
         }
         mDrawerTabs.setLayoutParams(layoutParams);
+    }
+
+    @Override
+    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        super.onLayout(changed, left, top, right, bottom);
+        updateFloatingDrawerTabsPosition();
+    }
+
+    private void updateFloatingDrawerTabsPosition() {
+        if (!mDrawerTabsEnabled || !isInAllApps() || !isSearchBarFloating()
+                || !"top".equals(getSearchBarPlacement())
+                || mDrawerTabs.getVisibility() != VISIBLE
+                || mSearchContainer == null || !mSearchContainer.isLaidOut()
+                || mSearchContainer.getVisibility() != VISIBLE) {
+            return;
+        }
+
+        // Floating search is parented to the DragLayer, not to this RelativeLayout.
+        // Locate its actual bottom in screen coordinates so the tabs never overlap it.
+        int[] searchLocation = new int[2];
+        int[] drawerLocation = new int[2];
+        mSearchContainer.getLocationOnScreen(searchLocation);
+        getLocationOnScreen(drawerLocation);
+        int gap = getResources().getDimensionPixelSize(R.dimen.all_apps_tabs_margin_top);
+        int topMargin = Math.max(gap,
+                searchLocation[1] + mSearchContainer.getHeight() - drawerLocation[1] + gap);
+        LayoutParams params = (LayoutParams) mDrawerTabs.getLayoutParams();
+        if (params.topMargin != topMargin) {
+            params.topMargin = topMargin;
+            mDrawerTabs.setLayoutParams(params);
+        }
     }
 
     private void layoutBelowDrawerTabs(View view) {
@@ -1788,6 +1834,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
                 ? VISIBLE : GONE);
         mAllTab.setSelected(!mCategoriesSelected);
         mCategoriesTab.setSelected(mCategoriesSelected);
+        mDrawerTabsView.setCategoriesSelected(mCategoriesSelected, false);
         if (isSearching()) {
             getSearchRecyclerView().setVisibility(VISIBLE);
             getAppsRecyclerViewContainer().setVisibility(GONE);
@@ -1826,11 +1873,32 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
     }
 
     private void selectDrawerTab(boolean categories) {
+        selectDrawerTab(categories, true);
+    }
+
+    private void selectDrawerTab(boolean categories, boolean animate) {
         if (!mDrawerTabsEnabled || mCategoriesSelected == categories) {
             return;
         }
+        boolean shouldAnimate = animate && isInAllApps()
+                && mDrawerTabs.getVisibility() == VISIBLE;
         mCategoriesSelected = categories;
+        mDrawerTabsView.setCategoriesSelected(categories, shouldAnimate);
         rebindAdapters();
+
+        if (shouldAnimate) {
+            // The tab mode has a different adapter and may use a different grid style.
+            // Animate only the freshly rebound content; leave the search bar and tabs fixed.
+            View content = getAppsRecyclerViewContainer();
+            content.animate().cancel();
+            float distance = getResources().getDimension(
+                    R.dimen.all_apps_library_tab_content_slide);
+            float direction = (categories ? 1f : -1f) * (isLayoutRtl() ? -1f : 1f);
+            content.setTranslationX(distance * direction);
+            content.setAlpha(0.65f);
+            content.animate().translationX(0f).alpha(1f).setDuration(240)
+                    .setInterpolator(new DecelerateInterpolator()).start();
+        }
     }
 
     private boolean shouldShowFastScroller() {

@@ -191,6 +191,9 @@ public class AllAppsGridAdapter extends BaseAllAppsAdapter {
 
     @Override
     public void setAppsPerRow(int appsPerRow) {
+        // Category rows span the full width whereas All-tab icons use single cells.
+        // Clear cached span indices when swapping adapter modes on this layout manager.
+        mGridLayoutMgr.getSpanSizeLookup().invalidateSpanIndexCache();
         mDrawerStyle = mAllowDrawerStyleModes
                 ? AppDrawerStyle.get(mActivityContext.asContext(), mApps.isAppLibrary())
                 : AppDrawerStyle.NORMAL;

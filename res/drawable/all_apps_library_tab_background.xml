@@ -7,21 +7,4 @@
             <solid android:color="@android:color/white" />
         </shape>
     </item>
-    <item>
-        <selector>
-            <item android:state_focused="true">
-                <shape>
-                    <corners android:radius="100dp" />
-                    <solid android:color="@color/materialColorSecondaryContainer" />
-                    <stroke android:width="2dp" android:color="@color/materialColorPrimary" />
-                </shape>
-            </item>
-            <item android:state_selected="true">
-                <shape>
-                    <corners android:radius="100dp" />
-                    <solid android:color="@color/materialColorSecondaryContainer" />
-                </shape>
-            </item>
-        </selector>
-    </item>
 </ripple>
