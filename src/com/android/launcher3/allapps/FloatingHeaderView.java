@@ -132,9 +132,8 @@ public class FloatingHeaderView extends LinearLayout implements
                 .getDimensionPixelSize(R.dimen.all_apps_header_top_adjustment);
         mTabsAdditionalPaddingBottom = context.getResources()
                 .getDimensionPixelSize(R.dimen.all_apps_header_bottom_adjustment);
-        // Let floating app rows extend with the list's vertical spring.
-        // The existing mHeaderClip still protects the header's top edge.
-        setClipChildren(false);
+        // Keep normal header clipping enabled. It is relaxed only while pinned
+        // rows actually stretch during a top-edge spring.
     }
 
     @Override
@@ -415,8 +414,17 @@ public class FloatingHeaderView extends LinearLayout implements
                 : Math.round(mCurrentRV.getTranslationY());
         mTranslationY = Math.max(mTranslationY, -mMaxTranslation);
 
-        if (mFloatingRowsCollapsed || mAppLibrary
-                || uncappedTranslationY < mTranslationY - getPaddingTop()) {
+        boolean rowsScrolledOut = mFloatingRowsCollapsed || mAppLibrary
+                || uncappedTranslationY < mTranslationY - getPaddingTop();
+        // Allow the pinned row to extend beyond the header only for a
+        // downward spring at the top of All Apps. During normal scrolling,
+        // clipping prevents remnants of the pinned row (and its scrollbar)
+        // from remaining visible beneath the search bar.
+        boolean expandingFromTopSpring = !rowsScrolledOut && springOffsetY > 0;
+        if (getClipChildren() == expandingFromTopSpring) {
+            setClipChildren(!expandingFromTopSpring);
+        }
+        if (rowsScrolledOut) {
             // we hide it completely if already capped (for opening search anim)
             for (FloatingHeaderRow row : mAllRows) {
                 row.setVerticalScroll(0, true /* isScrolledOut */);
