@@ -44,6 +44,7 @@ public final class HomeUnlockRevealController
     private QuickstepLauncher mLauncher;
     private HomeUnlockReveal mWorkspaceAnimation;
     private ValueAnimator mAnimator;
+    private boolean mAnimatingToUnlocked;
     private boolean mPrepared;
     private final Runnable mPrepareTimeout = this::cancel;
     private final ScreenOnTracker.ScreenOnListener mScreenOnListener = isOn -> {
@@ -102,6 +103,9 @@ public final class HomeUnlockRevealController
             if (!Float.isFinite(amount) || (mAnimator != null && !forceIfAnimating)) {
                 return;
             }
+            if (mAnimator != null && mAnimatingToUnlocked && amount >= 1f) {
+                return;
+            }
             mLauncher.getDragLayer().removeCallbacks(mPrepareTimeout);
             stopAnimator();
             if (amount >= 1f) {
@@ -140,6 +144,7 @@ public final class HomeUnlockRevealController
             }
             ValueAnimator animator = ValueAnimator.ofFloat(from, to);
             mAnimator = animator;
+            mAnimatingToUnlocked = unlocked;
             animator.setDuration(Math.round(
                     mWorkspaceAnimation.getDuration() * Math.abs(to - from)));
             long revealStartDelay = Math.max(0L, startDelay);
@@ -207,6 +212,7 @@ public final class HomeUnlockRevealController
     }
 
     private void stopAnimator() {
+        mAnimatingToUnlocked = false;
         if (mAnimator != null) {
             ValueAnimator animator = mAnimator;
             mAnimator = null;
