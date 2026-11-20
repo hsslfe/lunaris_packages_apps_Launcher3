@@ -101,6 +101,10 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
             if (Utilities.isDarkTheme(getContext())) {
                 surface = ColorUtils.blendARGB(surface, Color.BLACK, .40f);
                 surface = ColorUtils.setAlphaComponent(surface, 217); // 85% opacity.
+            } else {
+                // Keep the surface hue: darken the light card by 10%, with 95% opacity.
+                surface = ColorUtils.blendARGB(surface, Color.BLACK, .10f);
+                surface = ColorUtils.setAlphaComponent(surface, 242);
             }
             background.setColor(surface);
         }

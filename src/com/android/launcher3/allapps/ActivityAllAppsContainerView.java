@@ -95,6 +95,7 @@ import com.android.launcher3.pm.UserCache;
 import com.android.launcher3.recyclerview.AllAppsRecyclerViewPool;
 import com.android.launcher3.util.ItemInfoMatcher;
 import com.android.launcher3.util.Preconditions;
+import com.android.launcher3.util.SpringEdgeEffectFactory;
 import com.android.launcher3.util.Themes;
 import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.pageindicators.PageIndicatorDots;
@@ -2198,7 +2199,8 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
             mAppsList.updateItemFilter(matcher);
             mRecyclerView = (AllAppsRecyclerView) rv;
             mRecyclerView.bindFastScrollbar(mFastScroller, ALL_APPS_SCROLLER);
-            mRecyclerView.setEdgeEffectFactory(createEdgeEffectFactory());
+            // Keep the app list's existing spring physics at both scroll edges.
+            mRecyclerView.setEdgeEffectFactory(new SpringEdgeEffectFactory());
             mRecyclerView.setApps(mAppsList);
             mRecyclerView.setLayoutManager(mLayoutManager);
             mRecyclerView.setAdapter(mAdapter);
