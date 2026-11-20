@@ -94,19 +94,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         setOnClickListener(v -> hide(true));
         if (mCardView != null) {
             mCardView.setOnClickListener(v -> {});
-            // In light mode, match the regular category card surface exactly.
-            // Preserve the existing dark-mode blend and transparency.
-            GradientDrawable background = (GradientDrawable) mCardView.getBackground().mutate();
-            int surface = Themes.getAttrColor(getContext(), R.attr.allAppsSurfaceLow);
-            if (Utilities.isDarkTheme(getContext())) {
-                surface = ColorUtils.blendARGB(surface, Color.BLACK, .40f);
-                surface = ColorUtils.setAlphaComponent(surface, 217); // 85% opacity.
-            } else {
-                // Keep the surface hue: darken the light card by 10%, with 95% opacity.
-                surface = ColorUtils.blendARGB(surface, Color.BLACK, .10f);
-                surface = ColorUtils.setAlphaComponent(surface, 242);
-            }
-            background.setColor(surface);
+            updateBackgroundForTheme();
         }
 
         if (mGridView != null) {
@@ -118,6 +106,22 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
             mGridView.setEdgeEffectFactory(new SpringEdgeEffectFactory());
             mGridView.setNestedScrollingEnabled(true);
         }
+    }
+
+    /** Reapply the current surface after a light/dark theme change. */
+    public void updateBackgroundForTheme() {
+        if (mCardView == null) return;
+        GradientDrawable background = (GradientDrawable) mCardView.getBackground().mutate();
+        int surface = Themes.getAttrColor(getContext(), R.attr.allAppsSurfaceLow);
+        if (Utilities.isDarkTheme(getContext())) {
+            surface = ColorUtils.blendARGB(surface, Color.BLACK, .40f);
+            surface = ColorUtils.setAlphaComponent(surface, 217); // Existing 85% opacity.
+        } else {
+            // Light mode: 30% darker than the base surface, at 95% opacity.
+            surface = ColorUtils.blendARGB(surface, Color.BLACK, .30f);
+            surface = ColorUtils.setAlphaComponent(surface, 242);
+        }
+        background.setColor(surface);
     }
 
     @Override

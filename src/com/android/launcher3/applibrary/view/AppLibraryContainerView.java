@@ -80,6 +80,8 @@ public class AppLibraryContainerView extends FrameLayout
         mCategoryAdapter.notifyDataSetChanged();
         mSearchAdapter.notifyDataSetChanged();
         mExpandedSheet.refreshIcons();
+        mExpandedSheet.updateBackgroundForTheme();
+        updateAlphabetIndexerVisibility();
     };
 
     public AppLibraryContainerView(Context context) {
@@ -472,26 +474,33 @@ public class AppLibraryContainerView extends FrameLayout
         }
     }
 
+    /** Only show A-Z for the active, unfiltered search list, never over category cards. */
+    private void updateAlphabetIndexerVisibility() {
+        if (mAlphabetIndexer == null) return;
+        boolean show = mSearchBar != null && mSearchBar.isSearching()
+                && mSearchResultsView != null
+                && mSearchResultsView.getVisibility() == View.VISIBLE
+                && mSearchBar.getEditText() != null
+                && mSearchBar.getEditText().getText().toString().trim().isEmpty();
+        mAlphabetIndexer.setVisibility(show ? View.VISIBLE : View.GONE);
+    }
+
     @Override
     public void onSearchQueryChanged(String query) {
         if (mModel != null && mSearchAdapter != null) {
             boolean isEmpty = query == null || query.trim().isEmpty();
             if (isEmpty) {
                 mSearchAdapter.setApps(mModel.getAllApps(), true);
-                if (mAlphabetIndexer != null) {
-                    mAlphabetIndexer.setVisibility(View.VISIBLE);
-                }
             } else {
-            List<AppInfo> results = mModel.searchApps(query);
+                List<AppInfo> results = mModel.searchApps(query);
                 mSearchAdapter.setApps(results, false);
-                if (mAlphabetIndexer != null) {
-                    mAlphabetIndexer.setVisibility(View.GONE);
-                }
             }
             if (mSearchResultsView != null) {
                 mSearchResultsView.scrollToPosition(0);
             }
         }
+        // resetSearch() can clear text even when search is already inactive.
+        updateAlphabetIndexerVisibility();
     }
 
     @Override
@@ -538,9 +547,6 @@ public class AppLibraryContainerView extends FrameLayout
             if (mModel != null && mSearchAdapter != null) {
                 mSearchAdapter.setApps(mModel.getAllApps(), true);
             }
-            if (mAlphabetIndexer != null) {
-                mAlphabetIndexer.setVisibility(View.VISIBLE);
-            }
             if (mGridView != null) {
                 // The list surface stays, but only wallpaper should be visible through it.
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) mGridView.setRenderEffect(null);
@@ -559,9 +565,6 @@ public class AppLibraryContainerView extends FrameLayout
                         .setInterpolator(EMPHASIZED_DECELERATE).setListener(null).start();
             }
         } else {
-            if (mAlphabetIndexer != null) {
-                mAlphabetIndexer.setVisibility(View.GONE);
-            }
             if (mGridView != null) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     mGridView.setRenderEffect(null);
@@ -582,6 +585,7 @@ public class AppLibraryContainerView extends FrameLayout
                 }).start();
             }
         }
+        updateAlphabetIndexerVisibility();
     }
 
     @Override
