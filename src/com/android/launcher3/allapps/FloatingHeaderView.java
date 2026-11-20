@@ -56,6 +56,8 @@ public class FloatingHeaderView extends LinearLayout implements
     private final Rect mHeaderClip = new Rect(0, 0, Integer.MAX_VALUE, Integer.MAX_VALUE);
     private final ValueAnimator mAnimator = ValueAnimator.ofInt(0, 0);
     private final Point mTempOffset = new Point();
+    private final AllAppsRecyclerView.OnVerticalTranslationChangeListener
+            mVerticalTranslationListener = this::applyVerticalMove;
     private final RecyclerView.OnScrollListener mOnScrollListener =
             new RecyclerView.OnScrollListener() {
                 @Override
@@ -130,6 +132,9 @@ public class FloatingHeaderView extends LinearLayout implements
                 .getDimensionPixelSize(R.dimen.all_apps_header_top_adjustment);
         mTabsAdditionalPaddingBottom = context.getResources()
                 .getDimensionPixelSize(R.dimen.all_apps_header_bottom_adjustment);
+        // Let floating app rows extend with the list's vertical spring.
+        // The existing mHeaderClip still protects the header's top edge.
+        setClipChildren(false);
     }
 
     @Override
@@ -154,12 +159,18 @@ public class FloatingHeaderView extends LinearLayout implements
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        if (mCurrentRV != null) {
+            mCurrentRV.setOnVerticalTranslationChangeListener(mVerticalTranslationListener);
+        }
         PluginManagerWrapper.INSTANCE.get(getContext()).addPluginListener(this,
                 AllAppsRow.class, true /* allowMultiple */);
     }
 
     @Override
     protected void onDetachedFromWindow() {
+        if (mCurrentRV != null) {
+            mCurrentRV.setOnVerticalTranslationChangeListener(null);
+        }
         super.onDetachedFromWindow();
         PluginManagerWrapper.INSTANCE.get(getContext()).removePluginListener(this);
     }
@@ -304,27 +315,38 @@ public class FloatingHeaderView extends LinearLayout implements
     void setActiveRV(int rvType) {
         if (mCurrentRV != null) {
             mCurrentRV.removeOnScrollListener(mOnScrollListener);
+            mCurrentRV.setOnVerticalTranslationChangeListener(null);
         }
         mCurrentRV =
                 rvType == AdapterHolder.MAIN ? mMainRV
                 : rvType == AdapterHolder.WORK ? mWorkRV : mSearchRV;
         if (mCurrentRV != null) {
             mCurrentRV.addOnScrollListener(mOnScrollListener);
+            if (isAttachedToWindow()) {
+                mCurrentRV.setOnVerticalTranslationChangeListener(mVerticalTranslationListener);
+            }
         }
         maybeSetTabVisibility(rvType == AdapterHolder.SEARCH ? GONE : VISIBLE);
 
         updateExpectedHeight();
+        applyVerticalMove();
     }
 
     void updateMainRV(@Nullable AllAppsRecyclerView mainRV) {
         boolean mainWasActive = mCurrentRV == mMainRV;
         if (mainWasActive && mCurrentRV != null) {
             mCurrentRV.removeOnScrollListener(mOnScrollListener);
+            mCurrentRV.setOnVerticalTranslationChangeListener(null);
         }
         mMainRV = mainRV;
-        if (mainWasActive && mMainRV != null) {
+        if (mainWasActive) {
             mCurrentRV = mMainRV;
-            mCurrentRV.addOnScrollListener(mOnScrollListener);
+            if (mCurrentRV != null) {
+                mCurrentRV.addOnScrollListener(mOnScrollListener);
+                if (isAttachedToWindow()) {
+                    mCurrentRV.setOnVerticalTranslationChangeListener(mVerticalTranslationListener);
+                }
+            }
             applyVerticalMove();
         }
     }
@@ -387,6 +409,10 @@ public class FloatingHeaderView extends LinearLayout implements
 
     protected void applyVerticalMove() {
         int uncappedTranslationY = mTranslationY;
+        // Pinned and plugin header rows are outside the RecyclerView. Mirror its
+        // current spring displacement so they bounce in sync with suggested apps.
+        int springOffsetY = mCurrentRV == null ? 0
+                : Math.round(mCurrentRV.getTranslationY());
         mTranslationY = Math.max(mTranslationY, -mMaxTranslation);
 
         if (mFloatingRowsCollapsed || mAppLibrary
@@ -397,7 +423,8 @@ public class FloatingHeaderView extends LinearLayout implements
             }
         } else {
             for (FloatingHeaderRow row : mAllRows) {
-                row.setVerticalScroll(uncappedTranslationY, false /* isScrolledOut */);
+                row.setVerticalScroll(uncappedTranslationY + springOffsetY,
+                        false /* isScrolledOut */);
             }
         }
 
