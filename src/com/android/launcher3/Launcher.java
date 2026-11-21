@@ -265,6 +265,7 @@ import com.android.launcher3.util.Thunk;
 import com.android.launcher3.util.TouchController;
 import com.android.launcher3.util.TraceHelper;
 import com.android.launcher3.util.WallpaperThemeManager;
+import com.android.launcher3.views.HomeClockView;
 import com.android.launcher3.views.FloatingIconView;
 import com.android.launcher3.views.FloatingSurfaceView;
 import com.android.launcher3.views.ListenerView;
@@ -2902,6 +2903,8 @@ public class Launcher extends StatefulActivity<LauncherState>
         out.add(getAllAppsController());
         out.add(getAppLibraryController());
         out.add(getWorkspace());
+        HomeClockView homeClock = findViewById(R.id.home_clock);
+        if (homeClock != null) out.add(homeClock);
     }
 
     public TouchController[] createTouchControllers() {
