@@ -273,11 +273,6 @@ public class TaskOverlayFactory {
                     .saveAppPair(taskView);
         }
 
-        private void clearAllTasks() {
-            final RecentsView recentsView = mTaskContainer.getTaskView().getRecentsView();
-            recentsView.dismissAllTasks();
-        }
-
         private void launchLens() {
             final RecentsView recentsView =
                     mTaskContainer.getTaskView().getRecentsView();
@@ -457,11 +452,6 @@ public class TaskOverlayFactory {
             }
 
             @Override
-            public void onClearAllTasksRequested() {
-                endLiveTileMode(TaskOverlay.this::clearAllTasks);
-            }
-
-            @Override
             public void onLens() {
                 if (mIsAllowedByPolicy) {
                     endLiveTileMode(TaskOverlay.this::launchLens);
@@ -485,8 +475,6 @@ public class TaskOverlayFactory {
 
         /** User wants to save an app pair with current group of apps. */
         void onSaveAppPair();
-
-        void onClearAllTasksRequested();
 
         void onLens();
     }

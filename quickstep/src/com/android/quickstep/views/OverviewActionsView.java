@@ -189,6 +189,7 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
 
     @Nullable
     protected T mCallbacks;
+    private Runnable mClearAllAction;
 
     @Nullable
     protected DeviceProfile mDp;
@@ -258,7 +259,6 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
         if ((v = findViewById(R.id.action_screenshot)) != null) v.setOnClickListener(null);
         if ((v = findViewById(R.id.action_split)) != null) v.setOnClickListener(null);
         if ((v = findViewById(R.id.action_save_app_pair)) != null) v.setOnClickListener(null);
-        if ((v = findViewById(R.id.action_clear_all)) != null) v.setOnClickListener(null);
         if ((v = findViewById(R.id.action_lens)) != null) v.setOnClickListener(null);
     }
 
@@ -479,12 +479,24 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
         mCallbacks = callbacks;
     }
 
+    public void setClearAllAction(Runnable action) {
+        mClearAllAction = action;
+    }
+
     @Override
     public void onClick(View view) {
+        final int id = view.getId();
+        if (id == R.id.action_clear_all) {
+            if (mClearAllAction != null) {
+                VibratorWrapper.INSTANCE.get(getContext()).vibrate(VibratorWrapper.EFFECT_CLICK);
+                animateButtonPress(view, null);
+                mClearAllAction.run();
+            }
+            return;
+        }
         if (mCallbacks == null) {
             return;
         }
-        final int id = view.getId();
         if (id == R.id.action_screenshot) {
             VibratorWrapper.INSTANCE.get(getContext()).vibrate(VibratorWrapper.EFFECT_CLICK);
             animateButtonPress(view, mCallbacks::onScreenshot);
@@ -494,9 +506,6 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
         } else if (id == R.id.action_save_app_pair) {
             VibratorWrapper.INSTANCE.get(getContext()).vibrate(VibratorWrapper.EFFECT_CLICK);
             animateButtonPress(view, mCallbacks::onSaveAppPair);
-        } else if (id == R.id.action_clear_all) {
-            VibratorWrapper.INSTANCE.get(getContext()).vibrate(VibratorWrapper.EFFECT_CLICK);
-            animateButtonPress(view, mCallbacks::onClearAllTasksRequested);
         } else if (id == R.id.action_lens) {
             VibratorWrapper.INSTANCE.get(getContext()).vibrate(VibratorWrapper.EFFECT_CLICK);
             animateButtonPress(view, mCallbacks::onLens);
@@ -554,6 +563,8 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
         }
         boolean isEnabled = (mDisabledFlags & ~DISABLED_ROTATED) == 0;
         LayoutUtils.setViewEnabled(this, isEnabled);
+        // Clearing the list does not require a snapshot of the focused task.
+        mClearAllButton.setEnabled((mDisabledFlags & DISABLED_SCROLLING) == 0);
     }
 
     /**

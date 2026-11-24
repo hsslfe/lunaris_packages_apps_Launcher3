@@ -1289,6 +1289,7 @@ public abstract class RecentsView<
             MemInfoView memInfoView) {
         mIs3PLauncher = !OverviewComponentObserver.INSTANCE.get(mContext).isHomeAndOverviewSame();
         mActionsView = actionsView;
+        mActionsView.setClearAllAction(this::dismissAllTasks);
         mActionsView.updateHiddenFlags(HIDDEN_NO_TASKS, !hasTaskViews());
         // Update flags for 1p/3p launchers
         mActionsView.updateFor3pLauncher(mIs3PLauncher);
