@@ -261,6 +261,9 @@
     <string name="quickspace_alternate_style_title">Extended style</string>
     <string name="quickspace_alternate_style_summary">Switch to extended style</string>
 
+    <string name="at_a_glance_top_margin_title">Top margin</string>
+    <string name="at_a_glance_top_margin_summary">Move At a Glance up or down within the available home screen space</string>
+
     <!-- Quickspace new style -->
     <string name="quickspace_style_title">At A Glance style</string>
     <string-array name="quickspace_style_entries">

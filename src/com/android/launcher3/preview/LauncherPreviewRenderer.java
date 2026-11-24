@@ -381,6 +381,9 @@ public class LauncherPreviewRenderer extends BaseContext
                 //  changes.
                 CellLayoutLayoutParams lp = new CellLayoutLayoutParams(
                         0, 0, width, height);
+                int margin = LauncherPrefs.atAGlanceTopMarginPx(this);
+                firstScreen.setQuickspaceTopRoom(Math.min(firstScreen.getPaddingTop(), Math.max(0, -margin)));
+                if (margin != 0) Workspace.positionQuickspace(firstScreen, lp, height, margin);
                 lp.canReorder = false;
                 firstScreen.addViewToCellLayout(qsb, 0, R.id.reserved_container_workspace, lp, true);
             }

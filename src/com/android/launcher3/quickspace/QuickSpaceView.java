@@ -34,6 +34,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.android.launcher3.LauncherPrefs;
+import com.android.launcher3.celllayout.CellLayoutLayoutParams;
 import com.android.launcher3.R;
 import com.android.launcher3.util.Themes;
 import com.android.launcher3.quickspace.views.VoltagePagedView;
@@ -636,6 +637,17 @@ public class QuickSpaceView extends FrameLayout implements OnDataListener {
         mWeatherTempSub = null;
         mEventTitle = null;
         mColorStateList = null;
+    }
+
+    public void updateContentPosition() {
+        if (mQuickspaceContent == null || !(getParent() instanceof View host)
+                || !(host.getLayoutParams() instanceof CellLayoutLayoutParams lp)) return;
+        // Wrap-content styles can still move within their own cell when the
+        // status bar or an occupied row limits movement of the outer container.
+        int remaining = lp.quickspaceOffsetPx == 0 ? 0 : lp.quickspaceOffsetPx - lp.y;
+        int delta = Math.max(-Math.max(0, mQuickspaceContent.getTop()),
+                Math.min(remaining, Math.max(0, getHeight() - mQuickspaceContent.getBottom())));
+        mQuickspaceContent.setTranslationY(delta);
     }
 
     public void setPadding(int n, int n2, int n3, int n4) {

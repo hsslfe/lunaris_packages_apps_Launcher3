@@ -140,7 +140,11 @@ public class ShortcutAndWidgetContainer extends ViewGroup implements FolderIcon.
         } else {
             lp.setup(mCellWidth, mCellHeight, invertLayoutHorizontally(), mCountX, mCountY,
                     mBorderSpace);
-            expandCustomIconLayout(child, lp);
+            if (isChildQsb(child)) {
+                lp.applyQuickspaceOffset(mCellHeight, mBorderSpace.y, -getScrollY(), mCountY);
+            } else {
+                expandCustomIconLayout(child, lp);
+            }
         }
     }
 
@@ -180,6 +184,8 @@ public class ShortcutAndWidgetContainer extends ViewGroup implements FolderIcon.
         } else if (isChildQsb(child)) {
             lp.setup(mCellWidth, mCellHeight, invertLayoutHorizontally(), mCountX, mCountY,
                     mBorderSpace);
+            lp.applyQuickspaceOffset(mCellHeight, mBorderSpace.y,
+                    Math.max(0, -getScrollY()), mCountY);
             // No need to add padding for Qsb, which is either Smartspace (actual or preview), or
             // QsbContainerView.
         } else {

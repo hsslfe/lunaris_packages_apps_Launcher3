@@ -394,6 +394,15 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
         @JvmField val SHOW_QUICKSPACE_ALT = backedUpItem("pref_quickspace_alt", false)
         @JvmField val SHOW_QUICKSPACE_CALENDAR = backedUpItem("pref_quickspace_calendar", false)
         @JvmField val SHOW_QUICKSPACE_BATTERY = backedUpItem("pref_quickspace_battery", false)
+        @JvmField val AT_A_GLANCE_TOP_MARGIN = backedUpItem("pref_at_a_glance_top_margin", 0)
+
+        @JvmStatic
+        fun atAGlanceTopMarginPx(context: Context): Int {
+            if (!SHOW_QUICKSPACE.get(context)) return 0
+            val dp = AT_A_GLANCE_TOP_MARGIN.get(context).coerceIn(-35, 50)
+            return Math.round(dp * context.resources.displayMetrics.density)
+        }
+
         @JvmField val QUICKSPACE_PAGED_ACCENT = backedUpItem("pref_quickspace_paged_accent", true)
         @JvmField val QUICKSPACE_PAGED_MINIMAL = backedUpItem("pref_quickspace_paged_minimal", false)
 

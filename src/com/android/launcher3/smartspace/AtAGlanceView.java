@@ -75,6 +75,12 @@ public class AtAGlanceView extends FrameLayout
         updateListening();
     }
 
+    @Override
+    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        super.onLayout(changed, left, top, right, bottom);
+        if (mQuickspace != null) mQuickspace.updateContentPosition();
+    }
+
     private void updateListening() {
         boolean active = mResumed && mVisible && isAttachedToWindow() && !mDestroyed;
         if (mSmartspace != null) mSmartspace.setActive(active);

@@ -286,6 +286,8 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     private float mXDown;
     private float mYDown;
     private View mFirstPagePinnedItem;
+    private int mQuickspaceTopRoom;
+    private int mQuickspaceMarginPx;
     private boolean mIsEventOverFirstPagePinnedItem;
 
     final static float START_DAMPING_TOUCH_SLOP_ANGLE = (float) Math.PI / 6;
@@ -329,11 +331,17 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     // Handles workspace state transitions
     private final WorkspaceStateTransitionAnimation mStateTransitionAnimation;
     private final CosWorkspacePageTransition mPageTransition;
-    private final LauncherPrefChangeListener mPageTransitionPreferenceListener = key -> {
+    private final LauncherPrefChangeListener mWorkspacePreferenceListener = this::onWorkspacePreferenceChanged;
+
+    private void onWorkspacePreferenceChanged(String key) {
         if (LauncherPrefs.WORKSPACE_PAGE_TRANSITION.getSharedPrefKey().equals(key)) {
             updatePageTransitionPreference();
+        } else if (LauncherPrefs.AT_A_GLANCE_TOP_MARGIN.getSharedPrefKey().equals(key)) {
+            updateWorkspacePadding(mLauncher.getDeviceProfile());
+            updateCellLayoutMeasures();
+            expandQuickspaceIfVacant();
         }
-    };
+    }
 
     private final StatsLogManager mStatsLogManager;
 
@@ -397,8 +405,8 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
 
         mWorkspaceFadeInAdjacentScreens = grid.shouldFadeAdjacentWorkspaceScreens();
 
+        updateWorkspacePadding(grid);
         Rect padding = grid.mWorkspaceProfile.getWorkspacePadding();
-        setPadding(padding.left, padding.top, padding.right, padding.bottom);
         mInsets.set(insets);
 
         if (mWorkspaceFadeInAdjacentScreens) {
@@ -416,6 +424,15 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         updateCellLayoutMeasures();
         updateWorkspaceWidgetsSizes();
         setPageIndicatorInset();
+    }
+
+    private void updateWorkspacePadding(DeviceProfile grid) {
+        Rect padding = grid.mWorkspaceProfile.getWorkspacePadding();
+        mQuickspaceMarginPx = LauncherPrefs.atAGlanceTopMarginPx(getContext());
+        // Transfer only the needed top padding into the pages. The grid keeps its
+        // original screen coordinates and the first page can receive taps above row zero.
+        mQuickspaceTopRoom = Math.min(Math.max(0, padding.top), Math.max(0, -mQuickspaceMarginPx));
+        setPadding(padding.left, padding.top - mQuickspaceTopRoom, padding.right, padding.bottom);
     }
 
     void setPageIndicatorInset() {
@@ -447,7 +464,11 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     private void updateCellLayoutMeasures() {
         Rect padding = mLauncher.getDeviceProfile().mWorkspaceProfile.getCellLayoutPaddingPx();
         mWorkspaceScreens.forEach(cellLayout -> {
-            cellLayout.setPadding(padding.left, padding.top, padding.right, padding.bottom);
+            int top = padding.top + mQuickspaceTopRoom;
+            cellLayout.setPadding(padding.left, top, padding.right, padding.bottom);
+            if (cellLayout == mWorkspaceScreens.get(FIRST_SCREEN_ID)) {
+                cellLayout.setQuickspaceTopRoom(Math.min(top, Math.max(0, -mQuickspaceMarginPx)));
+            }
             cellLayout.setSpaceBetweenCellLayoutsPx(getPageSpacing() / 4);
         });
     }
@@ -695,10 +716,12 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         if (y < 1 || page == null || mFirstPagePinnedItem == null
                 || page.getShortcutsAndWidgets() != mFirstPagePinnedItem.getParent()
                 || !page.isOccupied(x, y) || page.getChildAt(x, y) != mFirstPagePinnedItem
-                || LauncherPrefs.quickspacePreferredRows(getContext()) == 1) return;
+                || (mQuickspaceMarginPx <= 0
+                    && LauncherPrefs.quickspacePreferredRows(getContext()) == 1)) return;
         CellLayoutLayoutParams lp = (CellLayoutLayoutParams) mFirstPagePinnedItem.getLayoutParams();
         page.markCellsAsUnoccupiedForView(mFirstPagePinnedItem);
         lp.cellVSpan = y;
+        lp.quickspaceContentRows = Math.min(lp.quickspaceContentRows, y);
         page.markCellsAsOccupiedForView(mFirstPagePinnedItem);
         mFirstPagePinnedItem.requestLayout();
     }
@@ -712,19 +735,33 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         return rows;
     }
 
+    public static void positionQuickspace(CellLayout page, CellLayoutLayoutParams lp,
+            int preferredRows, int marginPx) {
+        int rows = availableQuickspaceRows(page, lp.cellHSpan, preferredRows);
+        lp.quickspaceContentRows = rows;
+        lp.quickspaceOffsetPx = marginPx;
+        // A downward offset may need part of the following row. Reserve it only
+        // when empty, keeping the clock at the height selected for its style.
+        lp.cellVSpan = rows;
+        if (marginPx > page.mBorderSpace.y && rows < page.getCountY()
+                && page.isRegionVacant(0, rows, lp.cellHSpan, 1)) {
+            lp.cellVSpan++;
+        }
+    }
+
     void expandQuickspaceIfVacant() {
-        int preferred = LauncherPrefs.quickspacePreferredRows(getContext());
-        if (mFirstPagePinnedItem == null || preferred == 1) return;
+        if (mFirstPagePinnedItem == null) return;
         CellLayout page = getScreenWithId(FIRST_SCREEN_ID);
         if (page == null || mFirstPagePinnedItem.getParent() != page.getShortcutsAndWidgets()) return;
         CellLayoutLayoutParams lp = (CellLayoutLayoutParams) mFirstPagePinnedItem.getLayoutParams();
-        if (lp.cellVSpan != 1) return;
-        int rows = availableQuickspaceRows(page, lp.cellHSpan, preferred);
-        if (rows > 1) {
-            lp.cellVSpan = rows;
-            page.markCellsAsOccupiedForView(mFirstPagePinnedItem);
-            mFirstPagePinnedItem.requestLayout();
-        }
+        int preferred = LauncherPrefs.quickspacePreferredRows(getContext());
+        // The OOS clock already reserves two rows during the initial bind.
+        preferred = Math.max(preferred, lp.quickspaceContentRows == 0 ? lp.cellVSpan
+                : lp.quickspaceContentRows);
+        page.markCellsAsUnoccupiedForView(mFirstPagePinnedItem);
+        positionQuickspace(page, lp, preferred, mQuickspaceMarginPx);
+        page.markCellsAsOccupiedForView(mFirstPagePinnedItem);
+        mFirstPagePinnedItem.requestLayout();
     }
 
     /**
@@ -1327,10 +1364,8 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             tempFXY[0] = mXDown;
             tempFXY[1] = mYDown;
             Utilities.mapCoordInSelfToDescendant(mFirstPagePinnedItem, this, tempFXY);
-            mIsEventOverFirstPagePinnedItem = mFirstPagePinnedItem.getLeft() <= tempFXY[0]
-                    && mFirstPagePinnedItem.getRight() >= tempFXY[0]
-                    && mFirstPagePinnedItem.getTop() <= tempFXY[1]
-                    && mFirstPagePinnedItem.getBottom() >= tempFXY[1];
+            mIsEventOverFirstPagePinnedItem = Utilities.pointInView(
+                    mFirstPagePinnedItem, tempFXY[0], tempFXY[1], 0);
         } else {
             mIsEventOverFirstPagePinnedItem = false;
         }
@@ -1729,16 +1764,19 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         updatePageTransitionPreference();
-        LauncherPrefs.get(getContext()).addListener(mPageTransitionPreferenceListener,
-                LauncherPrefs.WORKSPACE_PAGE_TRANSITION);
+        LauncherPrefs.get(getContext()).addListener(mWorkspacePreferenceListener,
+                LauncherPrefs.WORKSPACE_PAGE_TRANSITION, LauncherPrefs.AT_A_GLANCE_TOP_MARGIN);
+        if (mQuickspaceMarginPx != LauncherPrefs.atAGlanceTopMarginPx(getContext())) {
+            onWorkspacePreferenceChanged(LauncherPrefs.AT_A_GLANCE_TOP_MARGIN.getSharedPrefKey());
+        }
         mWallpaperOffset.setWindowToken(getWindowToken());
         computeScroll();
         mLauncher.getStateManager().addStateListener(mAccessibilityDropListener);
     }
 
     protected void onDetachedFromWindow() {
-        LauncherPrefs.get(getContext()).removeListener(mPageTransitionPreferenceListener,
-                LauncherPrefs.WORKSPACE_PAGE_TRANSITION);
+        LauncherPrefs.get(getContext()).removeListener(mWorkspacePreferenceListener,
+                LauncherPrefs.WORKSPACE_PAGE_TRANSITION, LauncherPrefs.AT_A_GLANCE_TOP_MARGIN);
         resetPageTransition();
         super.onDetachedFromWindow();
         mWallpaperOffset.setWindowToken(null);

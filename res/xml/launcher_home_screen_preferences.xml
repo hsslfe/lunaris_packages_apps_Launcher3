@@ -225,6 +225,17 @@
             android:persistent="true"
             launcher:iconSpaceReserved="false" />
 
+        <com.android.launcher3.settings.preferences.CustomSeekBarPreference
+            android:key="pref_at_a_glance_top_margin"
+            android:title="@string/at_a_glance_top_margin_title"
+            android:summary="@string/at_a_glance_top_margin_summary"
+            android:dependency="pref_quickspace"
+            android:min="-35"
+            android:max="50"
+            android:defaultValue="0"
+            settings:units="dp"
+            settings:showSign="true" />
+
         <SwitchPreferenceCompat
             android:key="pref_smartspace"
             android:title="@string/use_smartspace_title"

@@ -105,6 +105,7 @@ public class CellLayout extends ViewGroup {
     private int mFixedCellHeight;
     @ViewDebug.ExportedProperty(category = "launcher")
     protected Point mBorderSpace;
+    private int mQuickspaceTopRoom;
 
     @ViewDebug.ExportedProperty(category = "launcher")
     protected int mCountX;
@@ -993,6 +994,13 @@ public class CellLayout extends ViewGroup {
         return mCellWidth;
     }
 
+    public void setQuickspaceTopRoom(int pixels) {
+        if (pixels == mQuickspaceTopRoom) return;
+        mQuickspaceTopRoom = pixels;
+        mShortcutsAndWidgets.scrollTo(0, -pixels);
+        requestLayout();
+    }
+
     public int getCellHeight() {
         return mCellHeight;
     }
@@ -1035,10 +1043,10 @@ public class CellLayout extends ViewGroup {
 
         mShortcutsAndWidgets.measure(
                 MeasureSpec.makeMeasureSpec(newWidth, MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(newHeight, MeasureSpec.EXACTLY));
+                MeasureSpec.makeMeasureSpec(newHeight + mQuickspaceTopRoom, MeasureSpec.EXACTLY));
 
         int maxWidth = mShortcutsAndWidgets.getMeasuredWidth();
-        int maxHeight = mShortcutsAndWidgets.getMeasuredHeight();
+        int maxHeight = mShortcutsAndWidgets.getMeasuredHeight() - mQuickspaceTopRoom;
         if (mFixedWidth > 0 && mFixedHeight > 0) {
             setMeasuredDimension(maxWidth, maxHeight);
         } else {
@@ -1065,7 +1073,9 @@ public class CellLayout extends ViewGroup {
                 right + mTempRect.right + getPaddingRight(),
                 bottom + mTempRect.bottom + getPaddingBottom());
 
-        mShortcutsAndWidgets.layout(left, top, right, bottom);
+        // Keep the grid origin fixed while extending the container's drawable
+        // and touchable bounds toward the status bar.
+        mShortcutsAndWidgets.layout(left, top - mQuickspaceTopRoom, right, bottom);
     }
 
     /**

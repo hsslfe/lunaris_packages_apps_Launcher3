@@ -77,6 +77,18 @@ public class CellLayoutLayoutParams extends ViewGroup.MarginLayoutParams {
 
     public boolean dropped;
 
+    /** Grid height of At a Glance before reserving space for a downward offset. */
+    public int quickspaceContentRows;
+    public int quickspaceOffsetPx;
+
+    public void applyQuickspaceOffset(int cellHeight, int rowGap, int topRoom, int gridRows) {
+        if (quickspaceContentRows <= 0 || quickspaceOffsetPx == 0) return;
+        int extraHeight = (cellVSpan - quickspaceContentRows) * (cellHeight + rowGap);
+        int clearance = extraHeight + (cellVSpan < gridRows ? rowGap : 0);
+        height -= extraHeight;
+        y += Math.max(-topRoom, Math.min(clearance, quickspaceOffsetPx));
+    }
+
     public CellLayoutLayoutParams(Context c, AttributeSet attrs) {
         super(c, attrs);
         cellHSpan = 1;
@@ -98,6 +110,8 @@ public class CellLayoutLayoutParams extends ViewGroup.MarginLayoutParams {
         this.mTmpCellX = source.getTmpCellX();
         this.mTmpCellY = source.getTmpCellY();
         this.useTmpCoords = source.useTmpCoords;
+        this.quickspaceContentRows = source.quickspaceContentRows;
+        this.quickspaceOffsetPx = source.quickspaceOffsetPx;
     }
 
     public CellLayoutLayoutParams(int cellX, int cellY, int cellHSpan, int cellVSpan) {
