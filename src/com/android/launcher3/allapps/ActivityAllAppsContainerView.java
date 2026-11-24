@@ -95,6 +95,7 @@ import com.android.launcher3.pm.UserCache;
 import com.android.launcher3.recyclerview.AllAppsRecyclerViewPool;
 import com.android.launcher3.util.ItemInfoMatcher;
 import com.android.launcher3.util.Preconditions;
+import com.android.launcher3.util.SpringEdgeEffectFactory;
 import com.android.launcher3.util.Themes;
 import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.pageindicators.PageIndicatorDots;
@@ -1622,31 +1623,31 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
 
     @Override
     protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
-        if ((child == getAppsRecyclerViewContainer() || child == getSearchRecyclerView())
-                && mSearchContainer != null
-                && mSearchContainer.getVisibility() == VISIBLE
-                && !isSearchBarFloating()) {
+        if (child == getAppsRecyclerViewContainer() || child == getSearchRecyclerView()) {
+            // The spring animates the RecyclerView outside its own layout bounds.
+            // Clip in the parent coordinate space so the list never draws over
+            // the fixed drawer handle/header, regardless of search bar position.
+            int clipTop = mHeader == null ? child.getTop()
+                    : Math.max(child.getTop(), mHeader.getTop() + mHeader.getClipTop());
+            int clipBottom = Integer.MAX_VALUE;
 
-            String searchPlacement = getSearchBarPlacement();
-            if ("bottom".equals(searchPlacement)) {
-                float searchTop = mSearchContainer.getTop() + mSearchContainer.getTranslationY();
-                if (searchTop > child.getTop()) {
-                    int saveCount = canvas.save();
-                    canvas.clipRect(child.getLeft(), child.getTop(), child.getRight(), (int) searchTop);
-                    boolean result = super.drawChild(canvas, child, drawingTime);
-                    canvas.restoreToCount(saveCount);
-                    return result;
+            if (mSearchContainer != null
+                    && mSearchContainer.getVisibility() == VISIBLE
+                    && !isSearchBarFloating()
+                    && "bottom".equals(getSearchBarPlacement())) {
+                // Also keep the list above the bottom search bar.
+                int searchTop = Math.round(
+                        mSearchContainer.getTop() + mSearchContainer.getTranslationY());
+                if (searchTop > clipTop) {
+                    clipBottom = searchTop;
                 }
-            } else if ("top".equals(searchPlacement)) {
-                // Spring overscroll translates the RecyclerView and its own clip bounds.
-                // Keep the search bar and header padding protected in parent coordinates.
-                int clipTop = Math.max(child.getTop(), mHeader.getTop() + mHeader.getClipTop());
-                int saveCount = canvas.save();
-                canvas.clipRect(child.getLeft(), clipTop, child.getRight(), Integer.MAX_VALUE);
-                boolean result = super.drawChild(canvas, child, drawingTime);
-                canvas.restoreToCount(saveCount);
-                return result;
             }
+
+            int saveCount = canvas.save();
+            canvas.clipRect(child.getLeft(), clipTop, child.getRight(), clipBottom);
+            boolean result = super.drawChild(canvas, child, drawingTime);
+            canvas.restoreToCount(saveCount);
+            return result;
         }
         return super.drawChild(canvas, child, drawingTime);
     }
@@ -2198,7 +2199,8 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
             mAppsList.updateItemFilter(matcher);
             mRecyclerView = (AllAppsRecyclerView) rv;
             mRecyclerView.bindFastScrollbar(mFastScroller, ALL_APPS_SCROLLER);
-            mRecyclerView.setEdgeEffectFactory(createEdgeEffectFactory());
+            // Keep the app list's existing spring physics at both scroll edges.
+            mRecyclerView.setEdgeEffectFactory(new SpringEdgeEffectFactory());
             mRecyclerView.setApps(mAppsList);
             mRecyclerView.setLayoutManager(mLayoutManager);
             mRecyclerView.setAdapter(mAdapter);

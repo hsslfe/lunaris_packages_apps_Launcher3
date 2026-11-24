@@ -56,6 +56,8 @@ public class FloatingHeaderView extends LinearLayout implements
     private final Rect mHeaderClip = new Rect(0, 0, Integer.MAX_VALUE, Integer.MAX_VALUE);
     private final ValueAnimator mAnimator = ValueAnimator.ofInt(0, 0);
     private final Point mTempOffset = new Point();
+    private final AllAppsRecyclerView.OnVerticalTranslationChangeListener
+            mVerticalTranslationListener = this::applyVerticalMove;
     private final RecyclerView.OnScrollListener mOnScrollListener =
             new RecyclerView.OnScrollListener() {
                 @Override
@@ -130,6 +132,8 @@ public class FloatingHeaderView extends LinearLayout implements
                 .getDimensionPixelSize(R.dimen.all_apps_header_top_adjustment);
         mTabsAdditionalPaddingBottom = context.getResources()
                 .getDimensionPixelSize(R.dimen.all_apps_header_bottom_adjustment);
+        // Keep normal header clipping enabled. It is relaxed only while pinned
+        // rows actually stretch during a top-edge spring.
     }
 
     @Override
@@ -154,12 +158,18 @@ public class FloatingHeaderView extends LinearLayout implements
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        if (mCurrentRV != null) {
+            mCurrentRV.setOnVerticalTranslationChangeListener(mVerticalTranslationListener);
+        }
         PluginManagerWrapper.INSTANCE.get(getContext()).addPluginListener(this,
                 AllAppsRow.class, true /* allowMultiple */);
     }
 
     @Override
     protected void onDetachedFromWindow() {
+        if (mCurrentRV != null) {
+            mCurrentRV.setOnVerticalTranslationChangeListener(null);
+        }
         super.onDetachedFromWindow();
         PluginManagerWrapper.INSTANCE.get(getContext()).removePluginListener(this);
     }
@@ -304,27 +314,38 @@ public class FloatingHeaderView extends LinearLayout implements
     void setActiveRV(int rvType) {
         if (mCurrentRV != null) {
             mCurrentRV.removeOnScrollListener(mOnScrollListener);
+            mCurrentRV.setOnVerticalTranslationChangeListener(null);
         }
         mCurrentRV =
                 rvType == AdapterHolder.MAIN ? mMainRV
                 : rvType == AdapterHolder.WORK ? mWorkRV : mSearchRV;
         if (mCurrentRV != null) {
             mCurrentRV.addOnScrollListener(mOnScrollListener);
+            if (isAttachedToWindow()) {
+                mCurrentRV.setOnVerticalTranslationChangeListener(mVerticalTranslationListener);
+            }
         }
         maybeSetTabVisibility(rvType == AdapterHolder.SEARCH ? GONE : VISIBLE);
 
         updateExpectedHeight();
+        applyVerticalMove();
     }
 
     void updateMainRV(@Nullable AllAppsRecyclerView mainRV) {
         boolean mainWasActive = mCurrentRV == mMainRV;
         if (mainWasActive && mCurrentRV != null) {
             mCurrentRV.removeOnScrollListener(mOnScrollListener);
+            mCurrentRV.setOnVerticalTranslationChangeListener(null);
         }
         mMainRV = mainRV;
-        if (mainWasActive && mMainRV != null) {
+        if (mainWasActive) {
             mCurrentRV = mMainRV;
-            mCurrentRV.addOnScrollListener(mOnScrollListener);
+            if (mCurrentRV != null) {
+                mCurrentRV.addOnScrollListener(mOnScrollListener);
+                if (isAttachedToWindow()) {
+                    mCurrentRV.setOnVerticalTranslationChangeListener(mVerticalTranslationListener);
+                }
+            }
             applyVerticalMove();
         }
     }
@@ -387,17 +408,41 @@ public class FloatingHeaderView extends LinearLayout implements
 
     protected void applyVerticalMove() {
         int uncappedTranslationY = mTranslationY;
+        // Pinned and plugin rows live outside the RecyclerView. Follow its
+        // vertical spring only while the app list is at its TOP edge.
+        // The bottom-edge rebound can momentarily cross zero, so using the
+        // translation sign alone can reveal offscreen pinned header content.
+        boolean atTopEdge = mCurrentRV != null && !mCurrentRV.canScrollVertically(-1);
+        int springOffsetY = atTopEdge
+                ? Math.round(mCurrentRV.getTranslationY()) : 0;
         mTranslationY = Math.max(mTranslationY, -mMaxTranslation);
 
-        if (mFloatingRowsCollapsed || mAppLibrary
-                || uncappedTranslationY < mTranslationY - getPaddingTop()) {
+        // The floating header must stay hidden once its full height has scrolled
+        // past the RecyclerView. During a bottom-edge spring, the snapped header
+        // translation can temporarily make the normal clipping check pass again,
+        // exposing remnants of the pinned row above the app grid.
+        boolean pastFloatingHeader = mCurrentRV != null && mMaxTranslation > 0
+                && mCurrentRV.computeVerticalScrollOffset() >= mMaxTranslation;
+        boolean rowsScrolledOut = mFloatingRowsCollapsed || mAppLibrary
+                || pastFloatingHeader
+                || uncappedTranslationY < mTranslationY - getPaddingTop();
+        // Allow the pinned row to extend beyond the header only for a
+        // downward spring at the top of All Apps. During normal scrolling,
+        // clipping prevents remnants of the pinned row (and its scrollbar)
+        // from remaining visible beneath the search bar.
+        boolean expandingFromTopSpring = !rowsScrolledOut && springOffsetY > 0;
+        if (getClipChildren() == expandingFromTopSpring) {
+            setClipChildren(!expandingFromTopSpring);
+        }
+        if (rowsScrolledOut) {
             // we hide it completely if already capped (for opening search anim)
             for (FloatingHeaderRow row : mAllRows) {
                 row.setVerticalScroll(0, true /* isScrolledOut */);
             }
         } else {
             for (FloatingHeaderRow row : mAllRows) {
-                row.setVerticalScroll(uncappedTranslationY, false /* isScrolledOut */);
+                row.setVerticalScroll(uncappedTranslationY + springOffsetY,
+                        false /* isScrolledOut */);
             }
         }
 

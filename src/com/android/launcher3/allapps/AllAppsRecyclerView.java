@@ -61,6 +61,28 @@ import java.util.List;
  */
 public class AllAppsRecyclerView extends FastScrollRecyclerView {
     protected static final String TAG = "AllAppsRecyclerView";
+
+    /** UI-only callback used by floating header rows to follow list translations. */
+    public interface OnVerticalTranslationChangeListener {
+        void onVerticalTranslationChanged();
+    }
+
+    @Nullable
+    private OnVerticalTranslationChangeListener mVerticalTranslationChangeListener;
+
+    public void setOnVerticalTranslationChangeListener(
+            @Nullable OnVerticalTranslationChangeListener listener) {
+        mVerticalTranslationChangeListener = listener;
+    }
+
+    @Override
+    public void setTranslationY(float translationY) {
+        float previousTranslationY = getTranslationY();
+        super.setTranslationY(translationY);
+        if (previousTranslationY != translationY && mVerticalTranslationChangeListener != null) {
+            mVerticalTranslationChangeListener.onVerticalTranslationChanged();
+        }
+    }
     private static final boolean DEBUG = false;
     private static final boolean DEBUG_LATENCY = Utilities.isPropertyEnabled(SEARCH_LOGGING);
     private Consumer<View> mChildAttachedConsumer;
