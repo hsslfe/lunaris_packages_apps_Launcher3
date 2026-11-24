@@ -692,27 +692,36 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     }
 
     void releaseQuickspaceRowForItem(CellLayout page, int x, int y) {
-        if (y != 1 || page == null || mFirstPagePinnedItem == null
+        if (y < 1 || page == null || mFirstPagePinnedItem == null
                 || page.getShortcutsAndWidgets() != mFirstPagePinnedItem.getParent()
                 || !page.isOccupied(x, y) || page.getChildAt(x, y) != mFirstPagePinnedItem
-                || LauncherPrefs.USE_SMARTSPACE.get(getContext())
-                || !"3".equals(LauncherPrefs.QUICKSPACE_UI_STYLE.get(getContext()))) return;
+                || LauncherPrefs.quickspacePreferredRows(getContext()) == 1) return;
         CellLayoutLayoutParams lp = (CellLayoutLayoutParams) mFirstPagePinnedItem.getLayoutParams();
         page.markCellsAsUnoccupiedForView(mFirstPagePinnedItem);
-        lp.cellVSpan = 1;
+        lp.cellVSpan = y;
         page.markCellsAsOccupiedForView(mFirstPagePinnedItem);
         mFirstPagePinnedItem.requestLayout();
     }
 
-    void expandVerticalQuickspaceIfVacant() {
-        if (mFirstPagePinnedItem == null || LauncherPrefs.USE_SMARTSPACE.get(getContext())
-                || !"3".equals(LauncherPrefs.QUICKSPACE_UI_STYLE.get(getContext()))) return;
+    public static int availableQuickspaceRows(CellLayout page, int width, int preferredRows) {
+        int rows = 1;
+        while (rows < Math.min(preferredRows, page.getCountY())
+                && page.isRegionVacant(0, rows, width, 1)) {
+            rows++;
+        }
+        return rows;
+    }
+
+    void expandQuickspaceIfVacant() {
+        int preferred = LauncherPrefs.quickspacePreferredRows(getContext());
+        if (mFirstPagePinnedItem == null || preferred == 1) return;
         CellLayout page = getScreenWithId(FIRST_SCREEN_ID);
-        if (page == null || page.getCountY() < 2
-                || mFirstPagePinnedItem.getParent() != page.getShortcutsAndWidgets()) return;
+        if (page == null || mFirstPagePinnedItem.getParent() != page.getShortcutsAndWidgets()) return;
         CellLayoutLayoutParams lp = (CellLayoutLayoutParams) mFirstPagePinnedItem.getLayoutParams();
-        if (lp.cellVSpan == 1 && page.isRegionVacant(0, 1, lp.cellHSpan, 1)) {
-            lp.cellVSpan = 2;
+        if (lp.cellVSpan != 1) return;
+        int rows = availableQuickspaceRows(page, lp.cellHSpan, preferred);
+        if (rows > 1) {
+            lp.cellVSpan = rows;
             page.markCellsAsOccupiedForView(mFirstPagePinnedItem);
             mFirstPagePinnedItem.requestLayout();
         }

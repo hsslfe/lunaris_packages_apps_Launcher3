@@ -394,6 +394,19 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
         @JvmField val SHOW_QUICKSPACE_ALT = backedUpItem("pref_quickspace_alt", false)
         @JvmField val SHOW_QUICKSPACE_CALENDAR = backedUpItem("pref_quickspace_calendar", false)
         @JvmField val SHOW_QUICKSPACE_BATTERY = backedUpItem("pref_quickspace_battery", false)
+        @JvmField val QUICKSPACE_PAGED_ACCENT = backedUpItem("pref_quickspace_paged_accent", true)
+        @JvmField val QUICKSPACE_PAGED_MINIMAL = backedUpItem("pref_quickspace_paged_minimal", false)
+
+        @JvmStatic
+        fun quickspacePreferredRows(context: Context): Int {
+            if (USE_SMARTSPACE.get(context)) return 1
+            return when (QUICKSPACE_UI_STYLE.get(context)) {
+                "3" -> 2
+                "4" -> if (QUICKSPACE_PAGED_MINIMAL.get(context)) 2 else 3
+                else -> 1
+            }
+        }
+
         @JvmField val QUICKSPACE_UI_STYLE = backedUpItem("pref_quickspace_style", "0")
         @JvmField
         val QUICKSPACE_CLOCK_SYSTEM_FONT =

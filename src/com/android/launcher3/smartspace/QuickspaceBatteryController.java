@@ -14,13 +14,18 @@ import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 
-/** Supplies the vertical Quickspace battery row while the workspace is visible. */
+import java.util.List;
+import java.util.stream.Collectors;
+
+/** Supplies the Voltage Quickspace battery row while the workspace is visible. */
 public final class QuickspaceBatteryController {
     private final Context mContext;
     private final Runnable mChanged;
     private final SmartspaceBluetoothController mBluetooth;
     private String mPhoneText;
-    private SmartspaceCard mAccessory;
+    private List<SmartspaceCard> mAccessories = List.of();
+    private String mSelectedId;
+    private int mPhoneLevel = -1;
     private boolean mStarted;
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -30,9 +35,10 @@ public final class QuickspaceBatteryController {
             int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
             String name = Settings.Global.getString(context.getContentResolver(),
                     Settings.Global.DEVICE_NAME);
-            mPhoneText = level >= 0 && scale > 0 ? context.getString(
+            mPhoneLevel = level >= 0 && scale > 0 ? Math.min(100, Math.round(100f * level / scale)) : -1;
+            mPhoneText = mPhoneLevel >= 0 ? context.getString(
                     R.string.quickspace_vertical_battery_value,
-                    TextUtils.isEmpty(name) ? Build.MODEL : name, Math.round(100f * level / scale))
+                    TextUtils.isEmpty(name) ? Build.MODEL : name, mPhoneLevel)
                     : null;
             mChanged.run();
         }
@@ -42,8 +48,9 @@ public final class QuickspaceBatteryController {
         mContext = context.getApplicationContext();
         mChanged = changed;
         mBluetooth = new SmartspaceBluetoothController(mContext, cards -> {
-            mAccessory = cards.stream().filter(card -> !TextUtils.isEmpty(card.details))
-                    .findFirst().orElse(null);
+            mAccessories = cards.stream().filter(card -> !TextUtils.isEmpty(card.details))
+                    .collect(Collectors.toList());
+            if (mSelectedId != null && selectedAccessory() == null) mSelectedId = null;
             mChanged.run();
         });
     }
@@ -60,17 +67,61 @@ public final class QuickspaceBatteryController {
         mStarted = false;
         mContext.unregisterReceiver(mReceiver);
         mBluetooth.stop();
-        mAccessory = null;
+        mAccessories = List.of();
+        mSelectedId = null;
+        mPhoneLevel = -1;
         mPhoneText = null;
     }
 
     public String getText() {
-        return mAccessory == null ? mPhoneText : mAccessory.title + " · " + mAccessory.details;
+        return textFor(mAccessories.isEmpty() ? null : mAccessories.get(0));
+    }
+
+    private SmartspaceCard selectedAccessory() {
+        if (mSelectedId == null) return null;
+        for (SmartspaceCard card : mAccessories) {
+            if (mSelectedId.equals(card.id)) return card;
+        }
+        return null;
+    }
+
+    private String textFor(SmartspaceCard card) {
+        return card == null ? mPhoneText : card.title + " · " + card.details;
+    }
+
+    public String getPagedText() {
+        if (mPhoneText == null && mSelectedId == null && !mAccessories.isEmpty()) {
+            mSelectedId = mAccessories.get(0).id;
+        }
+        return textFor(selectedAccessory());
+    }
+
+    public int getPagedPhoneLevel() {
+        return mSelectedId == null ? mPhoneLevel : -1;
+    }
+
+    public void cycleOrOpen(View view) {
+        if (mAccessories.size() + (mPhoneText == null ? 0 : 1) <= 1) {
+            openPagedSettings(view);
+            return;
+        }
+        int next = mSelectedId == null ? 0 : mAccessories.indexOf(selectedAccessory()) + 1;
+        if (next == mAccessories.size()) next = mPhoneText == null ? 0 : -1;
+        mSelectedId = next < 0 ? null : mAccessories.get(next).id;
+        mChanged.run();
+    }
+
+    public void openPagedSettings(View view) {
+        openSettings(view, selectedAccessory());
     }
 
     public void openSettings(View view) {
-        if (mAccessory != null) {
-            mAccessory.action.onClick(view);
+        openSettings(view, mAccessories.isEmpty() ? null : mAccessories.get(0));
+    }
+
+    private void openSettings(View view, SmartspaceCard accessory) {
+        if (accessory != null) {
+            accessory.action.onClick(view);
         } else {
             Launcher.getLauncher(view.getContext()).startActivitySafely(view,
                     new Intent(Intent.ACTION_POWER_USAGE_SUMMARY), null);

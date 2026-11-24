@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Paged Quickspace layout adapted from VoltageOS Launcher3. -->
+<com.android.launcher3.quickspace.views.VoltagePagedView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/quickspace_content"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:scrollbars="none">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp">
+
+        <TextClock
+            android:id="@+id/paged_date"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textSize="28sp"
+            android:textColor="?workspaceTextColor" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.android.launcher3.quickspace.views.PagedTextClock
+                android:id="@+id/paged_clock"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:singleLine="true"
+                android:includeFontPadding="false"
+                android:format12Hour="h:mm"
+                android:format24Hour="H:mm"
+                android:textSize="80sp"
+                android:textColor="?workspaceTextColor" />
+
+            <View
+                android:id="@+id/paged_divider"
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:layout_marginVertical="8dp"
+                android:background="?workspaceTextColor"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/paged_weather"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/paged_weather_icon"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:importantForAccessibility="no" />
+
+                <TextView
+                    android:id="@+id/paged_temperature"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:maxWidth="96dp"
+                    android:singleLine="true"
+                    android:ellipsize="end"
+                    android:textSize="24sp"
+                    android:textColor="?workspaceTextColor" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/paged_chips"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <ImageButton
+                android:id="@+id/paged_calendar_chip"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="4dp"
+                android:padding="9dp"
+                android:background="@drawable/bg_quickspace_minimal_chip"
+                android:src="@drawable/ic_quickspace_calendar"
+                android:tint="?workspaceTextColor"
+                android:contentDescription="@string/quickspace_vertical_calendar"
+                android:visibility="gone" />
+
+            <ImageButton
+                android:id="@+id/paged_media_chip"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="4dp"
+                android:padding="9dp"
+                android:background="@drawable/bg_quickspace_minimal_chip"
+                android:src="@drawable/ic_quickspace_minimal_headphones"
+                android:tint="?workspaceTextColor"
+                android:contentDescription="@string/quickspace_vertical_now_playing"
+                android:visibility="gone" />
+
+            <ImageButton
+                android:id="@+id/paged_note_chip"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="4dp"
+                android:padding="9dp"
+                android:background="@drawable/bg_quickspace_minimal_chip"
+                android:src="@drawable/ic_quickspace_minimal_psa"
+                android:tint="?workspaceTextColor"
+                android:contentDescription="@string/quickspace_vertical_note"
+                android:visibility="gone" />
+
+            <ImageButton
+                android:id="@+id/paged_battery_chip"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="4dp"
+                android:padding="9dp"
+                android:background="@drawable/bg_quickspace_minimal_chip"
+                android:src="@drawable/ic_quickspace_minimal_battery"
+                android:tint="?workspaceTextColor"
+                android:contentDescription="@string/quickspace_vertical_battery"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/paged_calendar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:minHeight="28dp"
+            android:gravity="center_vertical"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:drawableStart="@drawable/ic_quickspace_calendar"
+            android:drawableTint="?workspaceTextColor"
+            android:drawablePadding="6dp"
+            android:textSize="16sp"
+            android:textColor="?workspaceTextColor"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/paged_event"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:minHeight="28dp"
+            android:gravity="center_vertical"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:drawableStart="@drawable/ic_music_note_24dp"
+            android:drawableTint="?workspaceTextColor"
+            android:drawablePadding="6dp"
+            android:textSize="16sp"
+            android:textColor="?workspaceTextColor"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/paged_battery"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:minHeight="28dp"
+            android:gravity="center_vertical"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:drawableStart="@drawable/ic_quickspace_minimal_battery"
+            android:drawableTint="?workspaceTextColor"
+            android:drawablePadding="6dp"
+            android:background="@drawable/bg_battery_pill"
+            android:paddingHorizontal="12dp"
+            android:textSize="16sp"
+            android:textColor="?workspaceTextColor"
+            android:visibility="gone" />
+    </LinearLayout>
+</com.android.launcher3.quickspace.views.VoltagePagedView>

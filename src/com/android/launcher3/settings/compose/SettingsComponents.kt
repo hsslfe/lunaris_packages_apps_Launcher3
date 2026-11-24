@@ -471,7 +471,11 @@ internal fun LayoutPreview(kind: String, variant: Int, modifier: Modifier = Modi
                 pill(w * .38f, h * .9f, w * .24f, h * .025f)
             }
             "pref_quickspace_style" -> {
-                if (variant == 3) {
+                if (variant == 4) {
+                    pill(margin, h * .17f, w * .65f, h * .07f)
+                    pill(margin, h * .32f, w * .48f, h * .25f, accent)
+                    pill(w * .68f, h * .34f, w * .13f, h * .16f)
+                } else if (variant == 3) {
                     pill(margin, h * .16f, w * .10f, h * .56f, accent)
                     pill(w * .30f, h * .16f, w * .48f, h * .10f)
                     repeat(3) { row ->

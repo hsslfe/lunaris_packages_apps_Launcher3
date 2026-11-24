@@ -268,16 +268,23 @@
         <item>Extended</item>
         <item>OOS Clock</item>
         <item>Voltage vertical</item>
+        <item>Voltage paged style</item>
     </string-array>
     <string-array name="quickspace_style_values" translatable="false">
         <item>0</item>
         <item>1</item>
         <item>2</item>
         <item>3</item>
+        <item>4</item>
     </string-array>
 
     <string name="quickspace_clock_system_font_title">Use system font</string>
     <string name="quickspace_clock_system_font_summary">Use the system font for the OOS clock and its accompanying text</string>
+
+    <string name="quickspace_paged_accent">Accent first clock digit</string>
+    <string name="quickspace_paged_accent_summary">Use the theme accent for the first digit of the clock</string>
+    <string name="quickspace_paged_minimal">Minimal mode</string>
+    <string name="quickspace_paged_minimal_summary">Tap an icon to expand its details</string>
 
     <!-- Quickspace OOS clock color -->
     <string name="quickspace_clock_custom_color_title">Custom clock color</string>

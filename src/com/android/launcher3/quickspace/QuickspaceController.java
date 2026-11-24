@@ -427,6 +427,14 @@ public class QuickspaceController implements OmniJawsClient.OmniJawsObserver,
         }
     }
 
+    public String getPagedWeatherTemperature() {
+        if (!isWeatherAvailable()) return null;
+        if (mProvider == WeatherProvider.SERAPHIX) return mSeraphixText;
+        OmniJawsClient.WeatherInfo info = mWeatherInfo;
+        return info == null || info.temp == null || info.tempUnits == null
+                ? null : info.temp + info.tempUnits;
+    }
+
     public String getWeatherTemp() {
         if (mDestroyed) return null;
         

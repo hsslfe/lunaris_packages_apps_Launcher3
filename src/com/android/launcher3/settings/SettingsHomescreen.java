@@ -126,7 +126,9 @@ public class SettingsHomescreen extends ComposeSettingsActivity
                 LauncherPrefs.SHOW_QUICKSPACE.getSharedPrefKey().equals(key) ||
                 LauncherPrefs.SHOW_QUICKSPACE_ALT.getSharedPrefKey().equals(key) ||
                 (LauncherPrefs.USE_SMARTSPACE.getSharedPrefKey().equals(key)
-                        && "3".equals(LauncherPrefs.QUICKSPACE_UI_STYLE.get(this))) ||
+                        && ("3".equals(LauncherPrefs.QUICKSPACE_UI_STYLE.get(this))
+                                || "4".equals(LauncherPrefs.QUICKSPACE_UI_STYLE.get(this)))) ||
+                LauncherPrefs.QUICKSPACE_PAGED_MINIMAL.getSharedPrefKey().equals(key) ||
                 LauncherPrefs.QUICKSPACE_UI_STYLE.getSharedPrefKey().equals(key) ||
                 LauncherPrefs.QUICKSPACE_CLOCK_SYSTEM_FONT.getSharedPrefKey().equals(key) ||
                 LauncherPrefs.SHOW_QUICKSPACE_PSONALITY.getSharedPrefKey().equals(key) ||
@@ -410,9 +412,16 @@ public class SettingsHomescreen extends ComposeSettingsActivity
                 style = LauncherPrefs.get(getContext()).get(LauncherPrefs.SHOW_QUICKSPACE_ALT)
                         ? 1 : 0;
             }
-            boolean vertical = style == 3 && !smartspace;
-            setQuickspacePrefVisible(LauncherPrefs.SHOW_QUICKSPACE_CALENDAR.getSharedPrefKey(), vertical);
-            setQuickspacePrefVisible(LauncherPrefs.SHOW_QUICKSPACE_BATTERY.getSharedPrefKey(), vertical);
+            boolean paged = style == 4 && !smartspace;
+            boolean voltage = (style == 3 || style == 4) && !smartspace;
+            setQuickspacePrefVisible(LauncherPrefs.QUICKSPACE_PAGED_ACCENT.getSharedPrefKey(), paged);
+            setQuickspacePrefVisible(LauncherPrefs.QUICKSPACE_PAGED_MINIMAL.getSharedPrefKey(), paged);
+            if (paged) {
+                setQuickspacePrefVisible(LauncherPrefs.SHOW_QUICKSPACE_WEATHER_CITY.getSharedPrefKey(), false);
+                setQuickspacePrefVisible(LauncherPrefs.SHOW_QUICKSPACE_WEATHER_TEXT.getSharedPrefKey(), false);
+            }
+            setQuickspacePrefVisible(LauncherPrefs.SHOW_QUICKSPACE_CALENDAR.getSharedPrefKey(), voltage);
+            setQuickspacePrefVisible(LauncherPrefs.SHOW_QUICKSPACE_BATTERY.getSharedPrefKey(), voltage);
             boolean isOosClock = style == 2 && !smartspace;
             setQuickspacePrefVisible(
                     LauncherPrefs.QUICKSPACE_CLOCK_SYSTEM_FONT.getSharedPrefKey(), isOosClock);

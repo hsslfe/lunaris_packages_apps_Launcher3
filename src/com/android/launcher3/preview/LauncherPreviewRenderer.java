@@ -69,6 +69,7 @@ import com.android.launcher3.model.BgDataModel;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.WorkspaceData;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
+import com.android.launcher3.quickspace.views.PagedTextClock;
 import com.android.launcher3.quickspace.views.VoltageVerticalView;
 import com.android.launcher3.util.BaseContext;
 import com.android.launcher3.util.Themes;
@@ -256,6 +257,13 @@ public class LauncherPreviewRenderer extends BaseContext
                     return mUiHandler;
                 }
             };
+        } else if (PagedTextClock.class.getName().equals(name)) {
+            return new PagedTextClock(context, attrs) {
+                @Override
+                public Handler getHandler() {
+                    return mUiHandler;
+                }
+            };
         } else if (!"fragment".equals(name)) {
             return null;
         }
@@ -351,18 +359,21 @@ public class LauncherPreviewRenderer extends BaseContext
                 View qsb;
                 int width = firstScreen.getCountX();
                 int height = 1;
-                if (LauncherPrefs.SHOW_QUICKSPACE.get(this) && !LauncherPrefs.USE_SMARTSPACE.get(this)
-                        && "3".equals(LauncherPrefs.QUICKSPACE_UI_STYLE.get(this))) {
-                    VoltageVerticalView vertical = (VoltageVerticalView) mHomeElementInflater.inflate(
-                            R.layout.quickspace_voltage_vertical, firstScreen, false);
-                    vertical.applyColors(ColorStateList.valueOf(
-                            Themes.getAttrColor(this, R.attr.workspaceTextColor)));
-                    vertical.showPreview();
-                    width = Math.min(width, mIdp.numSearchContainerColumns);
-                    if (firstScreen.getCountY() > 1 && firstScreen.isRegionVacant(0, 1, width, 1)) {
-                        height = 2;
+                int preferredRows = LauncherPrefs.quickspacePreferredRows(this);
+                if (LauncherPrefs.SHOW_QUICKSPACE.get(this) && preferredRows > 1) {
+                    if ("4".equals(LauncherPrefs.QUICKSPACE_UI_STYLE.get(this))) {
+                        qsb = mHomeElementInflater.inflate(
+                                R.layout.quickspace_voltage_paged_style, firstScreen, false);
+                    } else {
+                        VoltageVerticalView vertical = (VoltageVerticalView) mHomeElementInflater.inflate(
+                                R.layout.quickspace_voltage_vertical, firstScreen, false);
+                        vertical.applyColors(ColorStateList.valueOf(
+                                Themes.getAttrColor(this, R.attr.workspaceTextColor)));
+                        vertical.showPreview();
+                        qsb = vertical;
                     }
-                    qsb = vertical;
+                    width = Math.min(width, mIdp.numSearchContainerColumns);
+                    height = Workspace.availableQuickspaceRows(firstScreen, width, preferredRows);
                 } else {
                     qsb = mHomeElementInflater.inflate(R.layout.qsb_preview, firstScreen, false);
                 }
