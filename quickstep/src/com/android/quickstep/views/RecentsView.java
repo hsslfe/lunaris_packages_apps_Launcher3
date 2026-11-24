@@ -6319,6 +6319,7 @@ public abstract class RecentsView<
             boolean toHome,
             boolean shouldPip,
             @Nullable Runnable onFinishComplete) {
+        final RecentsAnimationController controller = mRecentsAnimationController;
         Log.d(TAG, "finishRecentsAnimation - mRecentsAnimationController: "
                 + mRecentsAnimationController + ", toHome: " + toHome + ", shouldPip: " + shouldPip
                 + ", partial trace:\n"
@@ -6326,7 +6327,7 @@ public abstract class RecentsView<
         // TODO(b/197232424#comment#10) Move this back into onRecentsAnimationComplete(). Maybe?
         cleanupRemoteTargets();
 
-        if (mRecentsAnimationController == null) {
+        if (controller == null) {
             if (onFinishComplete != null) {
                 onFinishComplete.run();
             }
@@ -6349,20 +6350,22 @@ public abstract class RecentsView<
             tx.setShouldDisableCanAffectSystemUiFlags(false);
             int[] taskIds = TopTaskTracker.INSTANCE.get(getContext()).getRunningSplitTaskIds();
             for (int taskId : taskIds) {
-                mRecentsAnimationController.setFinishTaskTransaction(taskId,
+                controller.setFinishTaskTransaction(taskId,
                         tx, null /* overlay */);
             }
         }
         if (enableOverviewBackgroundWallpaperBlur()) {
             mBlurUtils.setDrawLiveTileBelowRecents(false);
         }
-        mRecentsAnimationController.finish(
+        controller.finish(
                 toHome,
                 /* onFinishComplete= */ () -> {
+                    if (mRecentsAnimationController == controller) {
+                        onRecentsAnimationComplete();
+                    }
                     if (onFinishComplete != null) {
                         onFinishComplete.run();
                     }
-                    onRecentsAnimationComplete();
                 },
                 sendUserLeaveHint,
                 /* reason= */ new ActiveGestureLog.CompoundString(
