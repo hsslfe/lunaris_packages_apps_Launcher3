@@ -5,8 +5,6 @@ import androidx.annotation.StringRes;
 
 import com.android.launcher3.model.data.AppInfo;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class AppCategoryGroup {
@@ -16,7 +14,7 @@ public class AppCategoryGroup {
 
     public AppCategoryGroup(@NonNull AppCategory category, @NonNull List<AppInfo> apps) {
         mCategory = category;
-        mApps = new ArrayList<>(apps);
+        mApps = List.copyOf(apps);
     }
 
     @NonNull
@@ -26,7 +24,7 @@ public class AppCategoryGroup {
 
     @NonNull
     public List<AppInfo> getApps() {
-        return Collections.unmodifiableList(mApps);
+        return mApps;
     }
 
     @StringRes

@@ -1,12 +1,11 @@
 package com.android.launcher3.applibrary.model;
 
 import android.content.Context;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
+import android.os.SystemClock;
 import android.text.TextUtils;
+import android.util.Log;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 
 import com.android.launcher3.allapps.AllAppsStore;
 import com.android.launcher3.model.data.AppInfo;
@@ -18,50 +17,98 @@ import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 
 public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
 
     public interface AppLibraryModelListener {
         void onCategoriesUpdated(List<AppCategoryGroup> groups);
+
         void onAllAppsUpdated(List<AppInfo> allApps);
+
+        default void onRecentAppsUpdated(List<AppInfo> apps) {}
     }
 
-    private static final Comparator<AppInfo> APP_NAME_COMPARATOR = (a, b) -> {
-        if (a == null && b == null) return 0;
-        if (a == null) return 1;
-        if (b == null) return -1;
-        String titleA = a.title != null ? a.title.toString() : "";
-        String titleB = b.title != null ? b.title.toString() : "";
-        int res = String.CASE_INSENSITIVE_ORDER.compare(titleA, titleB);
-        if (res != 0) return res;
-        return a.user.hashCode() - b.user.hashCode();
-    };
+    private static final Comparator<AppInfo> APP_NAME_COMPARATOR =
+            (a, b) -> {
+                if (a == null && b == null) return 0;
+                if (a == null) return 1;
+                if (b == null) return -1;
+                String titleA = a.title != null ? a.title.toString() : "";
+                String titleB = b.title != null ? b.title.toString() : "";
+                int res = String.CASE_INSENSITIVE_ORDER.compare(titleA, titleB);
+                if (res != 0) return res;
+                return a.user.hashCode() - b.user.hashCode();
+            };
 
     private final Context mContext;
     private final AllAppsStore mAppsStore;
     private final List<AppLibraryModelListener> mListeners = new CopyOnWriteArrayList<>();
-    private final Map<String, Long> mInstallTimeCache = new ConcurrentHashMap<>();
+    private final Executor mBackgroundExecutor;
+    private final Executor mMainExecutor;
+    private volatile boolean mEnabled;
+    private volatile int mBuildGeneration;
+    private boolean mBuildRunning;
+    private boolean mRecentRefreshRunning;
 
+    private List<AppInfo> mRecentApps = Collections.emptyList();
+    private volatile int mRecentGeneration;
+    private long mLastRecentRefresh;
+    private volatile boolean mDestroyed;
     private List<AppInfo> mAllAppsList = Collections.emptyList();
     private List<AppCategoryGroup> mCategoryGroups = Collections.emptyList();
 
     public AppLibraryModel(Context context, AllAppsStore appsStore) {
+        this(context, appsStore, true);
+    }
+
+    public AppLibraryModel(Context context, AllAppsStore appsStore, boolean enabled) {
+        this(context, appsStore, enabled, Executors.ORDERED_BG_EXECUTOR, Executors.MAIN_EXECUTOR);
+    }
+
+    @VisibleForTesting
+    AppLibraryModel(
+            Context context,
+            AllAppsStore appsStore,
+            boolean enabled,
+            Executor backgroundExecutor,
+            Executor mainExecutor) {
         mContext = context.getApplicationContext();
         mAppsStore = appsStore;
-        if (mAppsStore != null) {
-            mAppsStore.addUpdateListener(this);
+        mEnabled = enabled;
+        mBackgroundExecutor = backgroundExecutor;
+        mMainExecutor = mainExecutor;
+        if (mAppsStore != null) mAppsStore.addUpdateListener(this);
+        scheduleRebuild();
+    }
+
+    public void setEnabled(boolean enabled) {
+        if (mDestroyed || mEnabled == enabled) return;
+        mEnabled = enabled;
+        ++mBuildGeneration;
+        ++mRecentGeneration;
+        mLastRecentRefresh = 0;
+        if (enabled) {
+            scheduleRebuild();
+        } else {
+            clearData();
+            notifyListeners();
         }
-        rebuildCategories();
+    }
+
+    private void clearData() {
+        mAllAppsList = Collections.emptyList();
+        mCategoryGroups = Collections.emptyList();
+        mRecentApps = Collections.emptyList();
     }
 
     public void addListener(AppLibraryModelListener listener) {
-        if (listener != null && !mListeners.contains(listener)) {
+        if (!mDestroyed && listener != null && !mListeners.contains(listener)) {
             mListeners.add(listener);
             listener.onCategoriesUpdated(mCategoryGroups);
             listener.onAllAppsUpdated(mAllAppsList);
+            listener.onRecentAppsUpdated(mRecentApps);
         }
     }
 
@@ -72,73 +119,57 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
     }
 
     public void destroy() {
+        mDestroyed = true;
+        ++mRecentGeneration;
+        ++mBuildGeneration;
         if (mAppsStore != null) {
             mAppsStore.removeUpdateListener(this);
         }
         mListeners.clear();
-        mInstallTimeCache.clear();
+        clearData();
     }
 
     @Override
     public void onAppsUpdated() {
+        if (mDestroyed || !mEnabled) return;
+        ++mBuildGeneration;
+        ++mRecentGeneration;
+        mLastRecentRefresh = 0;
+        scheduleRebuild();
+    }
+
+    private boolean isCurrentBuild(int generation) {
+        return !mDestroyed && mEnabled && generation == mBuildGeneration;
+    }
+
+    private void scheduleRebuild() {
+        if (mDestroyed || !mEnabled || mAppsStore == null || mBuildRunning) return;
+        mBuildRunning = true;
+        int generation = mBuildGeneration;
+        AppInfo[] apps = mAppsStore.getApps();
+        AppInfo[] snapshot = apps == null ? AppInfo.EMPTY_ARRAY : apps.clone();
+        mBackgroundExecutor.execute(
+                () -> {
+                    try {
+                        rebuildCategories(snapshot, generation);
+                    } catch (RuntimeException e) {
+                        Log.e("AppLibraryModel", "Unable to rebuild categories", e);
+                        mMainExecutor.execute(
+                                () -> {
+                                    mBuildRunning = false;
+                                    if (generation != mBuildGeneration) scheduleRebuild();
+                                });
+                    }
+                });
+    }
+
+    private void rebuildCategories(AppInfo[] rawApps, int generation) {
+        if (!isCurrentBuild(generation)) {
+            postCategories(generation, List.of(), List.of());
+            return;
+        }
+        // Metadata lookups and sorting run off the UI thread, once per coalesced rebuild.
         AppCategoryEngine.clearCache();
-        mInstallTimeCache.clear();
-        rebuildCategories();
-    }
-
-    public void forceRefresh() {
-        rebuildCategories();
-    }
-
-    private long getAppInstallTime(AppInfo app) {
-        if (app == null || app.componentName == null) {
-            return 0;
-        }
-        String packageName = app.componentName.getPackageName();
-        int userId = app.user != null ? app.user.getIdentifier() : 0;
-        String key = packageName + "#" + userId;
-        Long cached = mInstallTimeCache.get(key);
-        if (cached != null) {
-            return cached;
-        }
-        long installTime = 0;
-        try {
-            PackageManager pm = mContext.getPackageManager();
-            PackageInfo packageInfo;
-            if (app.user != null) {
-                packageInfo = pm.getPackageInfoAsUser(packageName, 0, userId);
-            } else {
-                packageInfo = pm.getPackageInfo(packageName, 0);
-            }
-            if (packageInfo != null) {
-                installTime = packageInfo.firstInstallTime;
-            }
-        } catch (Exception e) {
-            try {
-                PackageInfo packageInfo = mContext.getPackageManager().getPackageInfo(packageName, 0);
-                if (packageInfo != null) {
-                    installTime = packageInfo.firstInstallTime;
-                }
-            } catch (Exception ignored) {
-            }
-        }
-        mInstallTimeCache.put(key, installTime);
-        return installTime;
-    }
-
-    private void rebuildCategories() {
-        if (mAppsStore == null) {
-            return;
-        }
-
-        AppInfo[] rawApps = mAppsStore.getApps();
-        if (rawApps == null || rawApps.length == 0) {
-            mAllAppsList = Collections.emptyList();
-            mCategoryGroups = Collections.emptyList();
-            notifyListeners();
-            return;
-        }
-
         List<AppInfo> allApps = new ArrayList<>(rawApps.length);
         for (AppInfo app : rawApps) {
             if (app != null && app.componentName != null) {
@@ -146,14 +177,16 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
             }
         }
         allApps.sort(APP_NAME_COMPARATOR);
-        mAllAppsList = Collections.unmodifiableList(allApps);
-
         EnumMap<AppCategory, List<AppInfo>> map = new EnumMap<>(AppCategory.class);
         for (AppCategory cat : AppCategory.values()) {
             map.put(cat, new ArrayList<>());
         }
 
         for (AppInfo app : allApps) {
+            if (!isCurrentBuild(generation)) {
+                postCategories(generation, List.of(), List.of());
+                return;
+            }
             AppCategory category = AppCategoryEngine.getCategoryForApp(mContext, app);
             List<AppInfo> list = map.get(category);
             if (list != null) {
@@ -169,7 +202,7 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
         map.put(AppCategory.SUGGESTIONS, suggestions);
 
         List<AppInfo> appsByInstallTime = new ArrayList<>(allApps);
-        appsByInstallTime.sort((a, b) -> Long.compare(getAppInstallTime(b), getAppInstallTime(a)));
+        appsByInstallTime.sort((a, b) -> Long.compare(b.firstInstallTime, a.firstInstallTime));
         List<AppInfo> recentlyAdded = new ArrayList<>();
         int maxRecent = Math.min(12, appsByInstallTime.size());
         for (int i = 0; i < maxRecent; i++) {
@@ -186,33 +219,93 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
         }
 
         groups.sort(Comparator.comparingInt(g -> g.getCategory().getPriority()));
-        mCategoryGroups = Collections.unmodifiableList(groups);
-        notifyListeners();
+        postCategories(generation, allApps, groups);
+    }
+
+    private void postCategories(
+            int generation, List<AppInfo> allApps, List<AppCategoryGroup> groups) {
+        mMainExecutor.execute(
+                () -> {
+                    mBuildRunning = false;
+                    if (!isCurrentBuild(generation)) {
+                        scheduleRebuild();
+                        return;
+                    }
+                    mAllAppsList = Collections.unmodifiableList(allApps);
+                    mCategoryGroups = Collections.unmodifiableList(groups);
+                    List<AppInfo> recentApps = new ArrayList<>(mRecentApps.size());
+                    for (AppInfo recent : mRecentApps) {
+                        for (AppInfo app : allApps) {
+                            if (app.componentName.equals(recent.componentName)
+                                    && app.user.equals(recent.user)) {
+                                recentApps.add(app);
+                                break;
+                            }
+                        }
+                    }
+                    mRecentApps = List.copyOf(recentApps);
+                    notifyListeners();
+                    refreshRecentApps();
+                });
+    }
+
+    /** Usage queries run off the UI thread and are coalesced across rapid repeated openings. */
+    public void refreshRecentApps() {
+        long now = SystemClock.elapsedRealtime();
+        if (mDestroyed
+                || !mEnabled
+                || mBuildRunning
+                || mRecentRefreshRunning
+                || mAllAppsList.isEmpty()
+                || (mLastRecentRefresh != 0 && now - mLastRecentRefresh < 5000)) return;
+        mRecentRefreshRunning = true;
+        mLastRecentRefresh = now;
+        int generation = mRecentGeneration;
+        List<AppInfo> snapshot = mAllAppsList;
+        List<AppInfo> previous = mRecentApps;
+        mBackgroundExecutor.execute(
+                () -> {
+                    List<AppInfo> queried;
+                    try {
+                        queried =
+                                !mDestroyed && mEnabled && generation == mRecentGeneration
+                                        ? AppLibraryRecentApps.query(mContext, snapshot)
+                                        : List.of();
+                    } catch (RuntimeException e) {
+                        Log.e("AppLibraryModel", "Unable to refresh recent apps", e);
+                        queried = previous;
+                    }
+                    List<AppInfo> recent = queried;
+                    mMainExecutor.execute(
+                            () -> {
+                                mRecentRefreshRunning = false;
+                                if (mDestroyed || !mEnabled) return;
+                                if (generation != mRecentGeneration) {
+                                    refreshRecentApps();
+                                    return;
+                                }
+                                mRecentApps = recent;
+                                for (AppLibraryModelListener listener : mListeners)
+                                    listener.onRecentAppsUpdated(recent);
+                            });
+                });
     }
 
     private void notifyListeners() {
-        Executors.MAIN_EXECUTOR.execute(() -> {
-            for (AppLibraryModelListener listener : mListeners) {
-                listener.onCategoriesUpdated(mCategoryGroups);
-                listener.onAllAppsUpdated(mAllAppsList);
-            }
-        });
+        if (mDestroyed) return;
+        for (AppLibraryModelListener listener : mListeners) {
+            listener.onCategoriesUpdated(mCategoryGroups);
+            listener.onAllAppsUpdated(mAllAppsList);
+            listener.onRecentAppsUpdated(mRecentApps);
+        }
     }
 
     public List<AppCategoryGroup> getCategoryGroups() {
         return mCategoryGroups;
     }
 
-    public List<AppInfo> getAllAppsList() {
-        return mAllAppsList;
-    }
-
     public List<AppInfo> getAllApps() {
         return mAllAppsList;
-    }
-
-    public List<AppInfo> filterApps(String query) {
-        return searchApps(query);
     }
 
     public List<AppInfo> searchApps(String query) {
@@ -223,7 +316,8 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
         String lowerQuery = query.toLowerCase(Locale.getDefault()).trim();
         List<AppInfo> results = new ArrayList<>();
         for (AppInfo app : mAllAppsList) {
-            if (app.title != null && app.title.toString().toLowerCase(Locale.getDefault()).contains(lowerQuery)) {
+            if (app.title != null
+                    && app.title.toString().toLowerCase(Locale.getDefault()).contains(lowerQuery)) {
                 results.add(app);
             }
         }

@@ -9,7 +9,7 @@
     android:paddingEnd="16dp"
     android:background="?android:attr/selectableItemBackground">
 
-    <com.android.launcher3.BubbleTextView
+    <com.android.launcher3.applibrary.view.AppLibraryIconView
         android:id="@+id/app_icon"
         style="@style/BaseIcon"
         android:layout_width="44dp"
@@ -31,15 +31,9 @@
             android:layout_height="wrap_content"
             android:layout_centerVertical="true"
             android:textSize="17sp"
-            android:textColor="@color/materialColorOnSurface"
+            android:textColor="@android:color/white"
             android:singleLine="true"
             android:ellipsize="end" />
-
-        <TextView
-            android:id="@+id/app_subtitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:visibility="gone" />
 
         <View
             android:id="@+id/app_divider"

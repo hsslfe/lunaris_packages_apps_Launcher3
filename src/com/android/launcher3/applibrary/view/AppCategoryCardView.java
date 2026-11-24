@@ -3,8 +3,6 @@ package com.android.launcher3.applibrary.view;
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.View;
-import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -12,9 +10,10 @@ import androidx.annotation.Nullable;
 
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.Launcher;
+import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
+import com.android.launcher3.Utilities;
 import com.android.launcher3.applibrary.model.AppCategoryGroup;
-import com.android.launcher3.icons.FastBitmapDrawable;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.views.ActivityContext;
 
@@ -31,13 +30,12 @@ public class AppCategoryCardView extends LinearLayout {
     private BubbleTextView mSlot0;
     private BubbleTextView mSlot1;
     private BubbleTextView mSlot2;
-    private FrameLayout mSlot3Container;
     private BubbleTextView mSlot3Single;
     private LinearLayout mSlot3MiniCluster;
-    private ImageView mMiniIcon0;
-    private ImageView mMiniIcon1;
-    private ImageView mMiniIcon2;
-    private ImageView mMiniIcon3;
+    private BubbleTextView mMiniIcon0;
+    private BubbleTextView mMiniIcon1;
+    private BubbleTextView mMiniIcon2;
+    private BubbleTextView mMiniIcon3;
 
     private AppCategoryGroup mGroup;
     private OnCategoryExpandListener mExpandListener;
@@ -62,7 +60,6 @@ public class AppCategoryCardView extends LinearLayout {
         mSlot0 = findViewById(R.id.card_slot_0);
         mSlot1 = findViewById(R.id.card_slot_1);
         mSlot2 = findViewById(R.id.card_slot_2);
-        mSlot3Container = findViewById(R.id.card_slot_3_container);
         mSlot3Single = findViewById(R.id.card_slot_3_single);
         mSlot3MiniCluster = findViewById(R.id.card_slot_3_mini_cluster);
         mMiniIcon0 = findViewById(R.id.mini_icon_0);
@@ -89,32 +86,16 @@ public class AppCategoryCardView extends LinearLayout {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         if (mCardContent != null) {
-            int cardWidth = mCardContent.getMeasuredWidth();
-            int cardHeight = Math.round(cardWidth * 1.2f);
-
-            int cardWidthSpec = MeasureSpec.makeMeasureSpec(
-                    cardWidth, MeasureSpec.EXACTLY);
-            int cardHeightSpec = MeasureSpec.makeMeasureSpec(
-                    cardHeight, MeasureSpec.EXACTLY);
-
-            mCardContent.measure(cardWidthSpec, cardHeightSpec);
-
-            int totalHeight = mCardContent.getMeasuredHeight()
-                    + getPaddingTop() + getPaddingBottom();
-
-            if (mTitleView != null && mTitleView.getVisibility() != GONE) {
-                totalHeight += mTitleView.getMeasuredHeight();
-
-                MarginLayoutParams lp = (MarginLayoutParams) mTitleView.getLayoutParams();
-                if (lp != null) {
-                    totalHeight += lp.topMargin + lp.bottomMargin;
-                }
-            }
-
-            setMeasuredDimension(getMeasuredWidth(), totalHeight);
+            int width =
+                    MeasureSpec.getSize(widthMeasureSpec) - getPaddingLeft() - getPaddingRight();
+            boolean labels = LauncherPrefs.APP_LIBRARY_SHOW_LABELS.get(getContext());
+            mCardContent.getLayoutParams().height =
+                    Math.round(width * (labels ? 1.2f : .96f))
+                            + mTitleView.getLineHeight()
+                            + Utilities.dpToPx(6, getContext());
         }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
     }
 
     public void setOnCategoryExpandListener(OnCategoryExpandListener listener) {
@@ -176,20 +157,36 @@ public class AppCategoryCardView extends LinearLayout {
                 return false;
             });
         } else {
+            ((AppLibraryIconView) view).clearAppIcon();
             view.setVisibility(View.INVISIBLE);
         }
     }
 
-    private void bindMiniIcon(ImageView view, AppInfo app) {
+    private void bindMiniIcon(BubbleTextView view, AppInfo app) {
         if (view == null) {
             return;
         }
-        if (app != null && app.bitmap != null) {
+        if (app != null) {
             view.setVisibility(View.VISIBLE);
-            FastBitmapDrawable drawable = app.newIcon(getContext());
-            view.setImageDrawable(drawable);
+            view.reset();
+            view.applyFromApplicationInfo(app);
+            // The cluster opens the category; its miniature icons are not separate targets.
+            view.setClickable(false);
+            view.setLongClickable(false);
+            view.setFocusable(false);
         } else {
+            ((AppLibraryIconView) view).clearAppIcon();
             view.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    void clearAppIcons() {
+        mGroup = null;
+        mExpandListener = null;
+        for (BubbleTextView icon : new BubbleTextView[] {
+                mSlot0, mSlot1, mSlot2, mSlot3Single,
+                mMiniIcon0, mMiniIcon1, mMiniIcon2, mMiniIcon3}) {
+            if (icon != null) ((AppLibraryIconView) icon).clearAppIcon();
         }
     }
 }

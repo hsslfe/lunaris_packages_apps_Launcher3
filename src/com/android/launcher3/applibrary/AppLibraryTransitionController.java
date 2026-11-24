@@ -1,27 +1,23 @@
 package com.android.launcher3.applibrary;
 
 import static com.android.app.animation.Interpolators.DECELERATE_1_7;
+import static com.android.app.animation.Interpolators.LINEAR;
 import static com.android.launcher3.LauncherState.APP_LIBRARY;
-import static com.android.launcher3.LauncherState.NORMAL;
 
-import android.animation.Animator;
-import android.animation.AnimatorListenerAdapter;
 import android.util.FloatProperty;
 import android.view.View;
 import android.view.animation.Interpolator;
 
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.DeviceProfile.OnDeviceProfileChangeListener;
-import com.android.launcher3.Hotseat;
 import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.Utilities;
-import com.android.launcher3.Workspace;
+import com.android.launcher3.anim.AnimatorListeners;
 import com.android.launcher3.anim.PendingAnimation;
 import com.android.launcher3.applibrary.view.AppLibraryContainerView;
 import com.android.launcher3.statemanager.StateManager.StateHandler;
 import com.android.launcher3.states.StateAnimationConfig;
-import com.android.launcher3.views.ScrimView;
 
 public class AppLibraryTransitionController
         implements StateHandler<LauncherState>, OnDeviceProfileChangeListener {
@@ -41,7 +37,6 @@ public class AppLibraryTransitionController
 
     private final Launcher mLauncher;
     private AppLibraryContainerView mAppLibraryView;
-    private ScrimView mScrimView;
     private float mProgress = 1f;
 
     public AppLibraryTransitionController(Launcher launcher) {
@@ -49,8 +44,7 @@ public class AppLibraryTransitionController
         mLauncher.addOnDeviceProfileChangeListener(this);
     }
 
-    public void setupViews(ScrimView scrimView, AppLibraryContainerView appLibraryView) {
-        mScrimView = scrimView;
+    public void setupViews(AppLibraryContainerView appLibraryView) {
         mAppLibraryView = appLibraryView;
     }
 
@@ -59,9 +53,16 @@ public class AppLibraryTransitionController
     }
 
     public void setProgress(float progress) {
+        float previous = mProgress;
         mProgress = Utilities.boundToRange(progress, 0f, 1f);
         if (mAppLibraryView == null) {
             return;
+        }
+
+        // Closing a partly pulled library must not carry vertical translation
+        // into the horizontal closing animation.
+        if (previous == 0f && mProgress > 0f) {
+            mAppLibraryView.cancelPullToSearch();
         }
 
         float width = mLauncher.getDeviceProfile().getDeviceProperties().getWidthPx();
@@ -80,17 +81,8 @@ public class AppLibraryTransitionController
             mAppLibraryView.setAlpha(1f - mProgress);
         }
 
-        Workspace<?> workspace = mLauncher.getWorkspace();
-        if (workspace != null) {
-            float shift = isRtl ? (1f - mProgress) * (width * 0.35f) : -(1f - mProgress) * (width * 0.35f);
-            workspace.setTranslationX(shift);
-            workspace.setAlpha(mProgress);
-        }
-
-        Hotseat hotseat = mLauncher.getHotseat();
-        if (hotseat != null) {
-            hotseat.setAlpha(mProgress);
-        }
+        if (mProgress == 0f && previous != 0f) mAppLibraryView.onLibraryOpened();
+        // WorkspaceStateTransitionAnimation owns Home translation and opacity.
     }
 
     @Override
@@ -105,33 +97,44 @@ public class AppLibraryTransitionController
         }
     }
 
+    public static void applySwipeConfig(StateAnimationConfig config) {
+        int[] properties = {
+            StateAnimationConfig.ANIM_WORKSPACE_TRANSLATE,
+            StateAnimationConfig.ANIM_WORKSPACE_PAGE_TRANSLATE_X,
+            StateAnimationConfig.ANIM_WORKSPACE_SCALE,
+            StateAnimationConfig.ANIM_WORKSPACE_FADE,
+            StateAnimationConfig.ANIM_HOTSEAT_SCALE,
+            StateAnimationConfig.ANIM_HOTSEAT_FADE,
+            StateAnimationConfig.ANIM_SCRIM_FADE,
+            StateAnimationConfig.ANIM_DEPTH
+        };
+        for (int property : properties) config.setInterpolator(property, LINEAR);
+    }
+
     @Override
     public void setStateWithAnimation(LauncherState toState, StateAnimationConfig config,
             PendingAnimation animation) {
         if (toState == APP_LIBRARY) {
-            if (mLauncher.isInState(NORMAL) && Float.compare(mProgress, 1f) != 0) {
-                setProgress(1f);
-            }
             float targetProgress = 0f;
-            Interpolator interpolator = config.getInterpolator(
-                    StateAnimationConfig.ANIM_WORKSPACE_TRANSLATE, DECELERATE_1_7);
+            Interpolator interpolator =
+                    config.getInterpolator(
+                            StateAnimationConfig.ANIM_WORKSPACE_TRANSLATE,
+                            config.isUserControlled() ? LINEAR : DECELERATE_1_7);
             animation.setFloat(this, APP_LIBRARY_PROGRESS, targetProgress, interpolator);
         } else {
-            if (mLauncher.isInState(APP_LIBRARY) && Float.compare(mProgress, 0f) != 0) {
-                setProgress(0f);
-            }
             float targetProgress = 1f;
-            Interpolator interpolator = config.getInterpolator(
-                    StateAnimationConfig.ANIM_WORKSPACE_TRANSLATE, DECELERATE_1_7);
+            Interpolator interpolator =
+                    config.getInterpolator(
+                            StateAnimationConfig.ANIM_WORKSPACE_TRANSLATE,
+                            config.isUserControlled() ? LINEAR : DECELERATE_1_7);
             animation.setFloat(this, APP_LIBRARY_PROGRESS, targetProgress, interpolator);
-            animation.addListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator anim) {
-                    if (mAppLibraryView != null) {
-                        mAppLibraryView.reset();
-                    }
-                }
-            });
+            animation.addListener(
+                    AnimatorListeners.forSuccessCallback(
+                            () -> {
+                                if (mAppLibraryView != null && Float.compare(mProgress, 1f) == 0) {
+                                    mAppLibraryView.reset();
+                                }
+                            }));
         }
     }
 

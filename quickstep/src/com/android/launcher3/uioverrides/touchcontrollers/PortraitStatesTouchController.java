@@ -22,8 +22,6 @@ import static com.android.launcher3.LauncherState.APP_LIBRARY;
 import static com.android.launcher3.LauncherState.NORMAL;
 import static com.android.launcher3.LauncherState.OVERVIEW;
 
-import com.android.launcher3.LauncherPrefs;
-
 import android.view.MotionEvent;
 
 import com.android.app.animation.Interpolators;
@@ -31,8 +29,11 @@ import com.android.internal.jank.Cuj;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Flags;
 import com.android.launcher3.Launcher;
+import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.allapps.AllAppsTransitionController;
+import com.android.launcher3.applibrary.AppLibraryTouchController;
+import com.android.launcher3.applibrary.AppLibraryTransitionController;
 import com.android.launcher3.states.StateAnimationConfig;
 import com.android.launcher3.touch.AbstractStateChangeTouchController;
 import com.android.launcher3.touch.AllAppsSwipeController;
@@ -61,6 +62,15 @@ public class PortraitStatesTouchController extends AbstractStateChangeTouchContr
 
     @Override
     protected boolean canInterceptTouch(MotionEvent ev) {
+        // Keep regular App Library swipes out of the navigation area without blocking
+        // the dedicated navbar-to-Overview controller, which inherits this class.
+        if (mLauncher.isInState(NORMAL)
+                && LauncherPrefs.APP_LIBRARY_ENABLED.get(mLauncher)
+                && LauncherPrefs.APP_LIBRARY_HIDE_APP_DRAWER.get(mLauncher)
+                && AppLibraryTouchController.isTouchInNavigationRegion(mLauncher, ev)
+                && !isNavigationBarGesture(ev)) {
+            return false;
+        }
         if (mLauncher.isInState(ALL_APPS) && !mLauncher.canOpenAllApps()) {
             return false;
         }
@@ -99,6 +109,14 @@ public class PortraitStatesTouchController extends AbstractStateChangeTouchContr
         return true;
     }
 
+    /**
+     * Subclasses handling system navigation gestures can opt out of the App Library's
+     * reserved navigation region for those gestures only.
+     */
+    protected boolean isNavigationBarGesture(MotionEvent ev) {
+        return false;
+    }
+
     @Override
     protected LauncherState getTargetState(LauncherState fromState, boolean isDragTowardPositive) {
         boolean isAppLibraryEnabled = LauncherPrefs.get(mLauncher).get(LauncherPrefs.APP_LIBRARY_ENABLED);
@@ -120,6 +138,9 @@ public class PortraitStatesTouchController extends AbstractStateChangeTouchContr
             LauncherState fromState, LauncherState toState) {
         final StateAnimationConfig config = new StateAnimationConfig();
         config.animProps |= StateAnimationConfig.USER_CONTROLLED;
+        if (fromState == APP_LIBRARY || toState == APP_LIBRARY) {
+            AppLibraryTransitionController.applySwipeConfig(config);
+        }
         if (fromState == NORMAL && toState == ALL_APPS) {
             AllAppsSwipeController.applyNormalToAllAppsAnimConfig(mLauncher, config);
         } else if (fromState == ALL_APPS && toState == NORMAL) {
@@ -137,6 +158,8 @@ public class PortraitStatesTouchController extends AbstractStateChangeTouchContr
         float endVerticalShift = mToState.getVerticalProgress(mLauncher) * range;
 
         float totalShift = endVerticalShift - startVerticalShift;
+        // Home and the horizontal library have equal vertical positions; avoid a zero range.
+        if (mFromState == NORMAL && mToState == APP_LIBRARY) totalShift = -range;
 
         final StateAnimationConfig config = totalShift == 0 ? new StateAnimationConfig()
                 : getConfigForStates(mFromState, mToState);

@@ -5,7 +5,9 @@ import static com.android.app.animation.Interpolators.EMPHASIZED;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.content.Context;
+import android.graphics.Color;
 import android.graphics.Rect;
+import android.graphics.drawable.GradientDrawable;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -17,6 +19,8 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.graphics.ColorUtils;
+import androidx.core.view.OneShotPreDrawListener;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -24,9 +28,14 @@ import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Insettable;
 import com.android.launcher3.Launcher;
+import com.android.launcher3.LauncherPrefs;
+import com.android.launcher3.Utilities;
 import com.android.launcher3.R;
 import com.android.launcher3.applibrary.model.AppCategoryGroup;
+import com.android.launcher3.applibrary.model.AppCategory;
 import com.android.launcher3.model.data.AppInfo;
+import com.android.launcher3.util.SpringEdgeEffectFactory;
+import com.android.launcher3.util.Themes;
 import com.android.launcher3.views.ActivityContext;
 
 import java.util.ArrayList;
@@ -44,6 +53,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
     private TextView mTitleView;
     private RecyclerView mGridView;
     private ExpandedGridAdapter mAdapter;
+    private AppCategory mCategory;
     private final ActivityContext mActivityContext;
     private OnExpandedSheetDismissListener mDismissListener;
     private final Rect mInsets = new Rect();
@@ -53,7 +63,8 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
     private float mStartTranslationY = 0f;
     private float mStartScaleX = 0.85f;
     private float mStartScaleY = 0.85f;
-    private boolean mIsAnimating = false;
+    private int mAnimationId;
+    private OneShotPreDrawListener mPendingOpen;
 
     public AppCategoryExpandedSheet(Context context) {
         this(context, null);
@@ -83,6 +94,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         setOnClickListener(v -> hide(true));
         if (mCardView != null) {
             mCardView.setOnClickListener(v -> {});
+            updateBackgroundForTheme();
         }
 
         if (mGridView != null) {
@@ -90,8 +102,26 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
             mGridView.setLayoutManager(new GridLayoutManager(getContext(), spanCount));
             mAdapter = new ExpandedGridAdapter(mActivityContext);
             mGridView.setAdapter(mAdapter);
+            mGridView.setItemAnimator(null);
+            mGridView.setEdgeEffectFactory(new SpringEdgeEffectFactory());
             mGridView.setNestedScrollingEnabled(true);
         }
+    }
+
+    /** Reapply the current surface after a light/dark theme change. */
+    public void updateBackgroundForTheme() {
+        if (mCardView == null) return;
+        GradientDrawable background = (GradientDrawable) mCardView.getBackground().mutate();
+        int surface = Themes.getAttrColor(getContext(), R.attr.allAppsSurfaceLow);
+        if (Utilities.isDarkTheme(getContext())) {
+            surface = ColorUtils.blendARGB(surface, Color.BLACK, .40f);
+            surface = ColorUtils.setAlphaComponent(surface, 217); // Existing 85% opacity.
+        } else {
+            // Light mode: 30% darker than the base surface, at 95% opacity.
+            surface = ColorUtils.blendARGB(surface, Color.BLACK, .30f);
+            surface = ColorUtils.setAlphaComponent(surface, 242);
+        }
+        background.setColor(surface);
     }
 
     @Override
@@ -102,18 +132,16 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
 
     @Override
     public void setInsets(Rect insets) {
+        if (mInsets.equals(insets)) return;
         mInsets.set(insets);
+        requestLayout();
     }
 
     private int calculateCellHeight() {
-        if (mActivityContext instanceof Launcher) {
-            DeviceProfile dp = ((Launcher) mActivityContext).getDeviceProfile();
-            if (dp != null && dp.getAllAppsProfile() != null && dp.getAllAppsProfile().getCellHeightPx() > 0) {
-                return dp.getAllAppsProfile().getCellHeightPx();
-            }
-        }
-        float density = getResources().getDisplayMetrics().density;
-        return (int) (104 * density);
+        DeviceProfile profile = mActivityContext.getDeviceProfile();
+        return LauncherPrefs.APP_LIBRARY_SHOW_LABELS.get(getContext())
+                ? profile.getAllAppsProfile().getCellHeightPx()
+                : profile.getAllAppsProfile().getIconSizePx() + Utilities.dpToPx(16, getContext());
     }
 
     @Override
@@ -123,7 +151,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
 
         float density = getResources().getDisplayMetrics().density;
         int maxCardWidth = Math.min(widthSize - (int) (32 * density), (int) (560 * density));
-        int maxSafeCardHeight = heightSize - (int) (48 * density);
+        int maxSafeCardHeight = heightSize - mInsets.top - mInsets.bottom - (int) (48 * density);
 
         int spanCount = calculateAdaptiveSpanCount();
         int itemCount = mAdapter != null ? mAdapter.getItemCount() : 0;
@@ -151,9 +179,24 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
             int cardWidth = mCardView.getMeasuredWidth();
             int cardHeight = mCardView.getMeasuredHeight();
             int cardLeft = (width - cardWidth) / 2;
-            int cardTop = (height - cardHeight) / 2;
+            int cardTop = mInsets.top + (height - mInsets.top - mInsets.bottom - cardHeight) / 2;
             mCardView.layout(cardLeft, cardTop, cardLeft + cardWidth, cardTop + cardHeight);
         }
+    }
+
+    public void refreshIcons() {
+        if (mAdapter != null) mAdapter.notifyDataSetChanged();
+    }
+
+    public void onCategoriesUpdated(List<AppCategoryGroup> groups) {
+        if (!isOpen()) return;
+        for (AppCategoryGroup group : groups) {
+            if (group.getCategory() == mCategory) {
+                mAdapter.setApps(group.getApps());
+                return;
+            }
+        }
+        hide(false);
     }
 
     public void setOnExpandedSheetDismissListener(OnExpandedSheetDismissListener listener) {
@@ -174,6 +217,9 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
     }
 
     public void show(@NonNull AppCategoryGroup group, @Nullable Rect sourceBounds) {
+        cancelAnimations();
+        mCategory = group.getCategory();
+        final int animationId = mAnimationId;
         mSourceBounds = sourceBounds;
         if (mTitleView != null) {
             mTitleView.setText(group.getTitleRes());
@@ -193,9 +239,10 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
 
         setVisibility(View.VISIBLE);
         setAlpha(0f);
-        mIsAnimating = true;
 
-        post(() -> {
+        mPendingOpen = OneShotPreDrawListener.add(this, () -> {
+            mPendingOpen = null;
+            if (animationId != mAnimationId || getVisibility() != VISIBLE) return;
             if (mCardView != null) {
                 int cardWidth = mCardView.getWidth();
                 int cardHeight = mCardView.getHeight();
@@ -234,12 +281,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
                         .alpha(1.0f)
                         .setDuration(280)
                         .setInterpolator(EMPHASIZED)
-                        .setListener(new AnimatorListenerAdapter() {
-                            @Override
-                            public void onAnimationEnd(Animator animation) {
-                                mIsAnimating = false;
-                            }
-                        })
+                        .setListener(null)
                         .start();
             }
 
@@ -257,8 +299,19 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
             return;
         }
 
+        cancelAnimations();
+        final int animationId = mAnimationId;
         if (!animate) {
             setVisibility(View.GONE);
+            clearHiddenApps();
+            setAlpha(1f);
+            if (mCardView != null) {
+                mCardView.setAlpha(1f);
+                mCardView.setTranslationX(0f);
+                mCardView.setTranslationY(0f);
+                mCardView.setScaleX(1f);
+                mCardView.setScaleY(1f);
+            }
             if (mDismissListener != null) {
                 mDismissListener.onDismissFinished();
             }
@@ -270,7 +323,6 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
             mDismissListener.onDismissStarted(duration);
         }
 
-        mIsAnimating = true;
         if (mCardView != null) {
             mCardView.animate()
                     .translationX(mStartTranslationX)
@@ -290,8 +342,9 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
                 .setListener(new AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationEnd(Animator animation) {
+                        if (animationId != mAnimationId) return;
                         setVisibility(View.GONE);
-                        mIsAnimating = false;
+                        clearHiddenApps();
                         if (mDismissListener != null) {
                             mDismissListener.onDismissFinished();
                         }
@@ -300,12 +353,37 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
                 .start();
     }
 
-    public boolean isOpen() {
-        return getVisibility() == View.VISIBLE;
+    private void clearHiddenApps() {
+        mCategory = null;
+        mSourceBounds = null;
+        if (mGridView != null) {
+            mGridView.stopScroll();
+            SpringEdgeEffectFactory.finishSpringAnimations(mGridView);
+            for (int i = 0; i < mGridView.getChildCount(); i++) {
+                ((AppLibraryIconView) mGridView.getChildAt(i)).clearAppIcon();
+            }
+        }
+        if (mAdapter != null) mAdapter.setApps(List.of());
     }
 
-    public boolean isAnimating() {
-        return mIsAnimating;
+    private void cancelAnimations() {
+        ++mAnimationId;
+        if (mPendingOpen != null) {
+            mPendingOpen.removeListener();
+            mPendingOpen = null;
+        }
+        animate().setListener(null).cancel();
+        if (mCardView != null) mCardView.animate().setListener(null).cancel();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        hide(false);
+        super.onDetachedFromWindow();
+    }
+
+    public boolean isOpen() {
+        return getVisibility() == View.VISIBLE;
     }
 
     private class ExpandedGridAdapter extends RecyclerView.Adapter<ExpandedGridAdapter.ViewHolder> {
@@ -330,7 +408,7 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             LayoutInflater inflater = LayoutInflater.from(parent.getContext());
             BubbleTextView icon = (BubbleTextView) inflater.inflate(
-                    R.layout.all_apps_icon, parent, false);
+                    R.layout.app_library_icon, parent, false);
             int cellHeight = calculateCellHeight();
             RecyclerView.LayoutParams lp = new RecyclerView.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -343,11 +421,12 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             AppInfo app = mApps.get(position);
+            holder.mIcon.getLayoutParams().height = calculateCellHeight();
             holder.mIcon.reset();
             holder.mIcon.applyFromApplicationInfo(app);
             holder.mIcon.setOnClickListener(v -> {
-                hide(false);
                 mActivityContext.getItemOnClickListener().onClick(v);
+                hide(false);
             });
             holder.mIcon.setOnLongClickListener(v -> {
                 if (mActivityContext instanceof Launcher) {
@@ -358,6 +437,12 @@ public class AppCategoryExpandedSheet extends FrameLayout implements Insettable 
                 }
                 return false;
             });
+        }
+
+        @Override
+        public void onViewRecycled(@NonNull ViewHolder holder) {
+            ((AppLibraryIconView) holder.mIcon).clearAppIcon();
+            super.onViewRecycled(holder);
         }
 
         @Override
