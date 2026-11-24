@@ -1,7 +1,6 @@
 package com.android.launcher3.applibrary.model;
 
 import android.content.Context;
-import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -51,10 +50,11 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
     private volatile int mBuildGeneration;
     private boolean mBuildRunning;
     private boolean mRecentRefreshRunning;
+    private boolean mRecentSessionActive;
+    private boolean mRecentRefreshRequested;
 
     private List<AppInfo> mRecentApps = Collections.emptyList();
     private volatile int mRecentGeneration;
-    private long mLastRecentRefresh;
     private volatile boolean mDestroyed;
     private List<AppInfo> mAllAppsList = Collections.emptyList();
     private List<AppCategoryGroup> mCategoryGroups = Collections.emptyList();
@@ -88,7 +88,8 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
         mEnabled = enabled;
         ++mBuildGeneration;
         ++mRecentGeneration;
-        mLastRecentRefresh = 0;
+        mRecentSessionActive = false;
+        mRecentRefreshRequested = false;
         if (enabled) {
             scheduleRebuild();
         } else {
@@ -120,6 +121,8 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
 
     public void destroy() {
         mDestroyed = true;
+        mRecentSessionActive = false;
+        mRecentRefreshRequested = false;
         ++mRecentGeneration;
         ++mBuildGeneration;
         if (mAppsStore != null) {
@@ -134,7 +137,7 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
         if (mDestroyed || !mEnabled) return;
         ++mBuildGeneration;
         ++mRecentGeneration;
-        mLastRecentRefresh = 0;
+        mRecentRefreshRequested = mRecentSessionActive;
         scheduleRebuild();
     }
 
@@ -245,21 +248,31 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
                     }
                     mRecentApps = List.copyOf(recentApps);
                     notifyListeners();
-                    refreshRecentApps();
+                    scheduleRecentRefresh();
                 });
     }
 
-    /** Usage queries run off the UI thread and are coalesced across rapid repeated openings. */
+    /** Begin a single on-demand refresh when the opening transition starts. */
     public void refreshRecentApps() {
-        long now = SystemClock.elapsedRealtime();
-        if (mDestroyed
-                || !mEnabled
-                || mBuildRunning
-                || mRecentRefreshRunning
-                || mAllAppsList.isEmpty()
-                || (mLastRecentRefresh != 0 && now - mLastRecentRefresh < 5000)) return;
+        if (mDestroyed || !mEnabled || mRecentSessionActive) return;
+        mRecentSessionActive = true;
+        mRecentRefreshRequested = true;
+        scheduleRecentRefresh();
+    }
+
+    /** Invalidate unfinished work when the library is closed; retain the last valid row. */
+    public void stopRecentAppsRefresh() {
+        if (!mRecentSessionActive) return;
+        mRecentSessionActive = false;
+        mRecentRefreshRequested = false;
+        ++mRecentGeneration;
+    }
+
+    private void scheduleRecentRefresh() {
+        if (mDestroyed || !mEnabled || !mRecentSessionActive || !mRecentRefreshRequested
+                || mBuildRunning || mRecentRefreshRunning || mAllAppsList.isEmpty()) return;
+        mRecentRefreshRequested = false;
         mRecentRefreshRunning = true;
-        mLastRecentRefresh = now;
         int generation = mRecentGeneration;
         List<AppInfo> snapshot = mAllAppsList;
         List<AppInfo> previous = mRecentApps;
@@ -280,13 +293,15 @@ public class AppLibraryModel implements AllAppsStore.OnUpdateListener {
                             () -> {
                                 mRecentRefreshRunning = false;
                                 if (mDestroyed || !mEnabled) return;
-                                if (generation != mRecentGeneration) {
-                                    refreshRecentApps();
-                                    return;
+                                if (mRecentSessionActive && generation == mRecentGeneration
+                                        && !mRecentApps.equals(recent)) {
+                                    mRecentApps = recent;
+                                    for (AppLibraryModelListener listener : mListeners) {
+                                        listener.onRecentAppsUpdated(recent);
+                                    }
                                 }
-                                mRecentApps = recent;
-                                for (AppLibraryModelListener listener : mListeners)
-                                    listener.onRecentAppsUpdated(recent);
+                                // A new opening or app-store change may have superseded this query.
+                                scheduleRecentRefresh();
                             });
                 });
     }

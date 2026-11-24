@@ -4,6 +4,8 @@ import static com.android.app.animation.Interpolators.DECELERATE_1_7;
 import static com.android.app.animation.Interpolators.LINEAR;
 import static com.android.launcher3.LauncherState.APP_LIBRARY;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.util.FloatProperty;
 import android.view.View;
 import android.view.animation.Interpolator;
@@ -59,10 +61,15 @@ public class AppLibraryTransitionController
             return;
         }
 
+        if (previous == 1f && mProgress < 1f) {
+            mAppLibraryView.onLibraryOpening();
+        }
+
         // Closing a partly pulled library must not carry vertical translation
         // into the horizontal closing animation.
         if (previous == 0f && mProgress > 0f) {
             mAppLibraryView.cancelPullToSearch();
+            mAppLibraryView.onLibraryClosing();
         }
 
         float width = mLauncher.getDeviceProfile().getDeviceProperties().getWidthPx();
@@ -72,6 +79,7 @@ public class AppLibraryTransitionController
             mAppLibraryView.setVisibility(View.INVISIBLE);
             mAppLibraryView.setTranslationX(isRtl ? -width : width);
             mAppLibraryView.setAlpha(0f);
+            if (previous != 1f) mAppLibraryView.onLibraryClosed();
         } else {
             if (mAppLibraryView.getVisibility() != View.VISIBLE) {
                 mAppLibraryView.setVisibility(View.VISIBLE);
@@ -115,6 +123,17 @@ public class AppLibraryTransitionController
     public void setStateWithAnimation(LauncherState toState, StateAnimationConfig config,
             PendingAnimation animation) {
         if (toState == APP_LIBRARY) {
+            if (mAppLibraryView != null && mProgress == 1f) {
+                mAppLibraryView.onLibraryOpening();
+                animation.addListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationCancel(Animator animator) {
+                        if (mAppLibraryView != null && mProgress == 1f) {
+                            mAppLibraryView.onLibraryClosed();
+                        }
+                    }
+                });
+            }
             float targetProgress = 0f;
             Interpolator interpolator =
                     config.getInterpolator(

@@ -314,12 +314,14 @@ public class AppLibraryContainerView extends FrameLayout
 
     public void setModel(AppLibraryModel model) {
         if (mModel != null) {
+            mModel.stopRecentAppsRefresh();
             mModel.removeListener(this);
         }
         mModel = model;
         if (mModel != null) {
             mModel.setEnabled(LauncherPrefs.APP_LIBRARY_ENABLED.get(getContext()));
             mModel.addListener(this);
+            resumeRecentAppsIfVisible();
         }
     }
 
@@ -344,13 +346,53 @@ public class AppLibraryContainerView extends FrameLayout
         mPullToSearchEligible = false;
     }
 
-    public void onLibraryOpened() {
-        bindPendingRecentApps();
-        if (mModel != null
-                && isAttachedToWindow()
-                && mActivityContext instanceof Launcher
-                && ((Launcher) mActivityContext).getAppLibraryController().getProgress() == 0f) {
+    public void onLibraryOpening() {
+        if (mCategoryAdapter != null) mCategoryAdapter.setRecentAnimationsEnabled(false);
+        if (mModel != null && isAttachedToWindow() && getWindowVisibility() == View.VISIBLE) {
             mModel.refreshRecentApps();
+        }
+    }
+
+    public void onLibraryOpened() {
+        if (mCategoryAdapter != null) mCategoryAdapter.setRecentAnimationsEnabled(true);
+        resumeRecentAppsIfVisible();
+        bindPendingRecentApps();
+    }
+
+    public void onLibraryClosing() {
+        if (mCategoryAdapter != null) mCategoryAdapter.setRecentAnimationsEnabled(false);
+    }
+
+    public void onLibraryClosed() {
+        onLibraryClosing();
+        if (mCategoryAdapter != null && mGridView != null) {
+            mCategoryAdapter.finishRecentAnimations(mGridView);
+        }
+        if (mModel != null) mModel.stopRecentAppsRefresh();
+        removeCallbacks(mBindPendingRecentApps);
+        bindPendingRecentApps();
+    }
+
+    private void resumeRecentAppsIfVisible() {
+        if (mModel == null || !isAttachedToWindow() || getWindowVisibility() != View.VISIBLE
+                || !(mActivityContext instanceof Launcher launcher)
+                || launcher.getAppLibraryController() == null) return;
+        float progress = launcher.getAppLibraryController().getProgress();
+        if (progress >= 1f) return;
+        if (mCategoryAdapter != null) mCategoryAdapter.setRecentAnimationsEnabled(progress == 0f);
+        mModel.refreshRecentApps();
+    }
+
+    @Override
+    protected void onWindowVisibilityChanged(int visibility) {
+        super.onWindowVisibilityChanged(visibility);
+        if (mModel == null) return;
+        if (visibility == View.VISIBLE) {
+            resumeRecentAppsIfVisible();
+            bindPendingRecentApps();
+        } else {
+            // The library may remain the selected state behind a launched app or screen-off.
+            onLibraryClosed();
         }
     }
 
@@ -367,14 +409,15 @@ public class AppLibraryContainerView extends FrameLayout
     }
 
     private boolean shouldDeferRecentAppsBind() {
-        if (!isShown()) return false;
+        if (!isShown() || getWindowVisibility() != View.VISIBLE) return false;
         if (mTouchInProgress
                 || (mGridView != null
                         && mGridView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE)) return true;
         if (mActivityContext instanceof Launcher
                 && ((Launcher) mActivityContext).getAppLibraryController() != null) {
             float progress = ((Launcher) mActivityContext).getAppLibraryController().getProgress();
-            return progress > 0f && progress < 1f;
+            // Bind silently while the opening surface is still almost entirely hidden.
+            return progress > 0f && progress < 0.85f;
         }
         return false;
     }
@@ -399,6 +442,7 @@ public class AppLibraryContainerView extends FrameLayout
         LauncherPrefs.get(getContext()).addListener(this, LauncherPrefs.APP_LIBRARY_SHOW_LABELS,
                 LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION, LauncherPrefs.APP_LIBRARY_ENABLED);
         if (mModel != null) mModel.setEnabled(LauncherPrefs.APP_LIBRARY_ENABLED.get(getContext()));
+        resumeRecentAppsIfVisible();
         onThemeChanged();
         if (mShowLabels != LauncherPrefs.APP_LIBRARY_SHOW_LABELS.get(getContext())) {
             onPrefChanged(LauncherPrefs.APP_LIBRARY_SHOW_LABELS.getSharedPrefKey());
@@ -460,12 +504,6 @@ public class AppLibraryContainerView extends FrameLayout
 
     @Override
     public void onAllAppsUpdated(List<AppInfo> allApps) {
-        if (isShown()
-                && mActivityContext instanceof Launcher
-                && ((Launcher) mActivityContext)
-                        .isInState(com.android.launcher3.LauncherState.APP_LIBRARY)) {
-            onLibraryOpened();
-        }
         if (mSearchAdapter != null && mSearchBar != null && mSearchBar.isSearching()) {
             String query = mSearchBar.isSearching()
                     ? mSearchBar.getEditText().getText().toString().trim() : "";
@@ -668,6 +706,7 @@ public class AppLibraryContainerView extends FrameLayout
     }
 
     public void reset() {
+        onLibraryClosed();
         cancelPullToSearch();
         clearCategoryBackgroundBlur();
         if (mExpandedSheet != null) {

@@ -125,8 +125,69 @@ public class AppLibraryModelSchedulingTest {
         try {
             mBackground.remove().run();
             mMain.remove().run();
+            assertTrue("Closed library must not query recent apps", mBackground.isEmpty());
             for (int i = 0; i < 100; i++) model.refreshRecentApps();
             assertEquals(1, mBackground.size());
+            drain();
+        } finally {
+            model.destroy();
+        }
+    }
+
+    @Test
+    public void closedLibrary_appStoreUpdatesDoNotQueryRecentApps() {
+        when(mStore.getApps()).thenReturn(new AppInfo[] {app("camera", 100)});
+        AppLibraryModel model = model(true);
+        try {
+            drain();
+            model.refreshRecentApps();
+            drain();
+            model.stopRecentAppsRefresh();
+            model.onAppsUpdated();
+            mBackground.remove().run();
+            mMain.remove().run();
+            assertTrue(mBackground.isEmpty());
+        } finally {
+            model.destroy();
+        }
+    }
+
+    @Test
+    public void openingBeforeCategoriesLoad_queriesOnceAfterBuild() {
+        when(mStore.getApps()).thenReturn(new AppInfo[] {app("camera", 100)});
+        AppLibraryModel model = model(true);
+        try {
+            model.refreshRecentApps();
+            assertEquals(1, mBackground.size());
+            mBackground.remove().run();
+            mMain.remove().run();
+            assertEquals(1, mBackground.size());
+            drain();
+            model.refreshRecentApps();
+            assertTrue(mBackground.isEmpty());
+        } finally {
+            model.destroy();
+        }
+    }
+
+    @Test
+    public void rapidReopen_invalidatesOldQueryAndSchedulesExactlyOneReplacement() {
+        when(mStore.getApps()).thenReturn(new AppInfo[] {app("camera", 100)});
+        AppLibraryModel model = model(true);
+        try {
+            drain();
+            model.refreshRecentApps();
+            model.stopRecentAppsRefresh();
+            model.refreshRecentApps();
+            assertEquals(1, mBackground.size());
+            mBackground.remove().run();
+            mMain.remove().run();
+            assertEquals(1, mBackground.size());
+            drain();
+            assertTrue(mBackground.isEmpty());
+            model.stopRecentAppsRefresh();
+            model.refreshRecentApps();
+            assertEquals("No five-second stale-data throttle on reopen", 1, mBackground.size());
             drain();
         } finally {
             model.destroy();
