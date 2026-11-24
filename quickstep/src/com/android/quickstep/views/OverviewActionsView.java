@@ -18,6 +18,11 @@ package com.android.quickstep.views;
 
 import static com.android.launcher3.util.OverviewReleaseFlags.enableGridOnlyOverview;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
+import android.animation.ValueAnimator;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -190,6 +195,8 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
     @Nullable
     protected T mCallbacks;
     private Runnable mClearAllAction;
+    @Nullable
+    private ObjectAnimator mClearAllPressAnimator;
 
     @Nullable
     protected DeviceProfile mDp;
@@ -245,6 +252,7 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
 
     @Override
     protected void onDetachedFromWindow() {
+        cancelClearAllPress();
         setCallbacks(null);
         clearChildClickListeners();
         if (mPrefsRegistered) {
@@ -421,19 +429,83 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
                     if (onPhase1Complete != null) {
                         onPhase1Complete.run();
                     }
-                    view.animate()
-                            .scaleX(1f)
-                            .scaleY(1f)
-                            .alpha(1f)
-                            .setDuration(200)
-                            .setInterpolator(SPRING_BACK_INTERPOLATOR)
-                            .start();
+                    animateButtonRelease(view);
                 })
                 .start();
     }
 
+    private void animateButtonRelease(View view) {
+        view.animate()
+                .scaleX(1f)
+                .scaleY(1f)
+                .alpha(1f)
+                .setDuration(200)
+                .setInterpolator(SPRING_BACK_INTERPOLATOR)
+                .start();
+    }
+
+    private void animateClearAllPress(View view) {
+        if (mClearAllAction == null || mClearAllPressAnimator != null) {
+            return;
+        }
+
+        final Runnable action = mClearAllAction;
+        VibratorWrapper.INSTANCE.get(getContext()).vibrate(VibratorWrapper.EFFECT_CLICK);
+        if (!ValueAnimator.areAnimatorsEnabled()) {
+            action.run();
+            return;
+        }
+
+        // Use a dedicated animator so another ViewPropertyAnimator update cannot
+        // silently cancel the pending clear-all action.
+        view.animate().cancel();
+        ObjectAnimator press = ObjectAnimator.ofPropertyValuesHolder(view,
+                PropertyValuesHolder.ofFloat(View.SCALE_X, 0.88f),
+                PropertyValuesHolder.ofFloat(View.SCALE_Y, 0.88f),
+                PropertyValuesHolder.ofFloat(View.ALPHA, 0.75f));
+        press.setDuration(100);
+        press.setInterpolator(PRESS_DOWN_INTERPOLATOR);
+        mClearAllPressAnimator = press;
+        press.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (mClearAllPressAnimator != animation) {
+                    return;
+                }
+                mClearAllPressAnimator = null;
+                if (view.isAttachedToWindow() && view.isShown()) {
+                    animateButtonRelease(view);
+                    if (mClearAllAction == action) {
+                        action.run();
+                    }
+                } else {
+                    resetClearAllButtonTransform();
+                }
+            }
+        });
+        press.start();
+    }
+
+    private void cancelClearAllPress() {
+        ObjectAnimator press = mClearAllPressAnimator;
+        mClearAllPressAnimator = null;
+        if (press != null) {
+            press.cancel();
+        }
+        resetClearAllButtonTransform();
+    }
+
+    private void resetClearAllButtonTransform() {
+        if (mClearAllButton != null) {
+            mClearAllButton.animate().cancel();
+            mClearAllButton.setScaleX(1f);
+            mClearAllButton.setScaleY(1f);
+            mClearAllButton.setAlpha(1f);
+        }
+    }
+
     private void performMemoryBoost() {
-        if (mIsPerformingMemoryBoost) {
+        if (mIsPerformingMemoryBoost || mClearAllPressAnimator != null) {
             return;
         }
         
@@ -487,11 +559,7 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
     public void onClick(View view) {
         final int id = view.getId();
         if (id == R.id.action_clear_all) {
-            if (mClearAllAction != null) {
-                VibratorWrapper.INSTANCE.get(getContext()).vibrate(VibratorWrapper.EFFECT_CLICK);
-                animateButtonPress(view, null);
-                mClearAllAction.run();
-            }
+            animateClearAllPress(view);
             return;
         }
         if (mCallbacks == null) {
