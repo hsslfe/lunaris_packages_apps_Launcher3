@@ -252,6 +252,22 @@
             launcher:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
+            android:key="pref_quickspace_calendar"
+            android:title="@string/quickspace_calendar_title"
+            android:summary="@string/quickspace_calendar_summary"
+            android:dependency="pref_quickspace"
+            android:defaultValue="false"
+            launcher:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            android:key="pref_quickspace_battery"
+            android:title="@string/quickspace_battery_title"
+            android:summary="@string/quickspace_battery_summary"
+            android:dependency="pref_quickspace"
+            android:defaultValue="false"
+            launcher:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
             android:key="pref_quickspace_clock_system_font"
             android:title="@string/quickspace_clock_system_font_title"
             android:summary="@string/quickspace_clock_system_font_summary"

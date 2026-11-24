@@ -392,6 +392,8 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
         @JvmField val SMARTSPACE_DOORBELL = backedUpItem("pref_smartspace_doorbell", true)
         @JvmField val SMARTSPACE_OTHER = backedUpItem("pref_smartspace_other", true)
         @JvmField val SHOW_QUICKSPACE_ALT = backedUpItem("pref_quickspace_alt", false)
+        @JvmField val SHOW_QUICKSPACE_CALENDAR = backedUpItem("pref_quickspace_calendar", false)
+        @JvmField val SHOW_QUICKSPACE_BATTERY = backedUpItem("pref_quickspace_battery", false)
         @JvmField val QUICKSPACE_UI_STYLE = backedUpItem("pref_quickspace_style", "0")
         @JvmField
         val QUICKSPACE_CLOCK_SYSTEM_FONT =

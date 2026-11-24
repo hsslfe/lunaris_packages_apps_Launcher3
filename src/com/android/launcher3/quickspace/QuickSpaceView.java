@@ -36,6 +36,7 @@ import android.widget.TextView;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 import com.android.launcher3.util.Themes;
+import com.android.launcher3.quickspace.views.VoltageVerticalView;
 
 import com.android.launcher3.quickspace.QuickspaceController.OnDataListener;
 import com.android.launcher3.quickspace.receivers.QuickSpaceActionReceiver;
@@ -82,6 +83,8 @@ public class QuickSpaceView extends FrameLayout implements OnDataListener {
     private boolean mDestroyed;
 
     private boolean mIsAlternateStyle = false;
+    private boolean mResumed;
+    private VoltageVerticalView mVerticalView;
     private int mCurrentStyle = -1;
 
     public QuickspaceController mController;
@@ -104,7 +107,7 @@ public class QuickSpaceView extends FrameLayout implements OnDataListener {
         // Determine current style with backward compatibility
         int style = getCurrentStyle();
         
-        if (mEventTitle == null || mCurrentStyle != style) {
+        if (mCurrentStyle != style || (mEventTitle == null && mVerticalView == null)) {
             prepareLayout(style);
         }
         mIsQuickEvent = mController.isQuickEvent();
@@ -124,6 +127,9 @@ public class QuickSpaceView extends FrameLayout implements OnDataListener {
 
     private void updateView(int style) {
         switch (style) {
+            case 3:
+                mVerticalView.onDataUpdated(true);
+                break;
             case 2:
                 loadLargeStyle();
                 break;
@@ -445,6 +451,8 @@ public class QuickSpaceView extends FrameLayout implements OnDataListener {
 
         int insertIndex = (mQuickspaceContent != null) ? indexOfChild(mQuickspaceContent) : -1;
         if (mQuickspaceContent != null) {
+            if (mVerticalView != null) mVerticalView.onDestroy();
+            mVerticalView = null;
             clearOldViewState();
             removeView(mQuickspaceContent);
         }
@@ -452,6 +460,9 @@ public class QuickSpaceView extends FrameLayout implements OnDataListener {
         switch (style) {
             case 1:
                 layoutId = R.layout.quickspace_alternate_double;
+                break;
+            case 3:
+                layoutId = R.layout.quickspace_voltage_vertical;
                 break;
             case 2:
                 layoutId = R.layout.quickspace_large_style;
@@ -464,6 +475,12 @@ public class QuickSpaceView extends FrameLayout implements OnDataListener {
                 insertIndex < 0 ? -1 : insertIndex);
 
         loadViews();
+        if (mQuickspaceContent instanceof VoltageVerticalView vertical) {
+            mVerticalView = vertical;
+            vertical.onBind(mController);
+            vertical.applyColors(mColorStateList);
+            vertical.setActive(mResumed);
+        }
         getQuickSpaceView();
         setBackgroundResource(mQuickspaceBackgroundRes);
     }
@@ -559,17 +576,23 @@ public class QuickSpaceView extends FrameLayout implements OnDataListener {
     }
 
     public void onPause() {
+        mResumed = false;
+        if (mVerticalView != null) mVerticalView.setActive(false);
         if (mController != null) mController.onPause();
     }
 
     public void onResume() {
         if (mDestroyed) return;
+        mResumed = true;
+        if (mVerticalView != null) mVerticalView.setActive(true);
         if (mController != null && mListenerRegistered) mController.onResume();
     }
 
     public void onDestroy() {
         if (mDestroyed) return;
         mDestroyed = true;
+        if (mVerticalView != null) mVerticalView.onDestroy();
+        mVerticalView = null;
         
         cleanupAllLayoutListeners();
         clearOldViewState();

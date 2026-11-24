@@ -2450,6 +2450,7 @@ public class Launcher extends StatefulActivity<LauncherState>
             CellPos presenterPos = getCellPosMapper().mapModelToPresenter(item);
             if (item.container == CONTAINER_DESKTOP) {
                 CellLayout cl = mWorkspace.getScreenWithId(presenterPos.screenId);
+                workspace.releaseQuickspaceRowForItem(cl, presenterPos.cellX, presenterPos.cellY);
                 if (cl != null && cl.isOccupied(presenterPos.cellX, presenterPos.cellY)) {
                     View occupiedView = cl.getChildAt(presenterPos.cellX, presenterPos.cellY);
                     Object tag = occupiedView == null ? null : occupiedView.getTag();
@@ -2572,6 +2573,7 @@ public class Launcher extends StatefulActivity<LauncherState>
      * Implementation of the method from LauncherModel.Callbacks.
      */
     public void finishBindingItems(IntSet pagesBoundFirst) {
+        mWorkspace.expandVerticalQuickspaceIfVacant();
         TestEventEmitter.sendEvent(TestEvent.WORKSPACE_FINISH_LOADING);
     }
 

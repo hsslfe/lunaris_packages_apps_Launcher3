@@ -28,6 +28,7 @@ import static java.util.Comparator.comparingDouble;
 
 import android.app.Fragment;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.content.res.TypedArray;
 import android.graphics.Rect;
@@ -55,6 +56,7 @@ import com.android.launcher3.Hotseat;
 import com.android.launcher3.InsettableFrameLayout;
 import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.LauncherModel;
+import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 import com.android.launcher3.Workspace;
 import com.android.launcher3.WorkspaceLayoutManager;
@@ -67,7 +69,9 @@ import com.android.launcher3.model.BgDataModel;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.WorkspaceData;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
+import com.android.launcher3.quickspace.views.VoltageVerticalView;
 import com.android.launcher3.util.BaseContext;
+import com.android.launcher3.util.Themes;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.IntSet;
 import com.android.launcher3.util.ItemInflater;
@@ -344,11 +348,28 @@ public class LauncherPreviewRenderer extends BaseContext
         if (qsbOnFirstScreen()) {
             CellLayout firstScreen = mWorkspaceScreens.get(FIRST_SCREEN_ID);
             if (firstScreen != null) {
-                View qsb = mHomeElementInflater.inflate(R.layout.qsb_preview, firstScreen, false);
+                View qsb;
+                int width = firstScreen.getCountX();
+                int height = 1;
+                if (LauncherPrefs.SHOW_QUICKSPACE.get(this) && !LauncherPrefs.USE_SMARTSPACE.get(this)
+                        && "3".equals(LauncherPrefs.QUICKSPACE_UI_STYLE.get(this))) {
+                    VoltageVerticalView vertical = (VoltageVerticalView) mHomeElementInflater.inflate(
+                            R.layout.quickspace_voltage_vertical, firstScreen, false);
+                    vertical.applyColors(ColorStateList.valueOf(
+                            Themes.getAttrColor(this, R.attr.workspaceTextColor)));
+                    vertical.showPreview();
+                    width = Math.min(width, mIdp.numSearchContainerColumns);
+                    if (firstScreen.getCountY() > 1 && firstScreen.isRegionVacant(0, 1, width, 1)) {
+                        height = 2;
+                    }
+                    qsb = vertical;
+                } else {
+                    qsb = mHomeElementInflater.inflate(R.layout.qsb_preview, firstScreen, false);
+                }
                 // TODO: set bgHandler on qsb when it is BaseTemplateCard, which requires API
                 //  changes.
                 CellLayoutLayoutParams lp = new CellLayoutLayoutParams(
-                        0, 0, firstScreen.getCountX(), 1);
+                        0, 0, width, height);
                 lp.canReorder = false;
                 firstScreen.addViewToCellLayout(qsb, 0, R.id.reserved_container_workspace, lp, true);
             }
