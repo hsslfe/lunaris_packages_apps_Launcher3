@@ -34,10 +34,12 @@ import androidx.annotation.BinderThread;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
+import com.android.quickstep.RemoteAnimationTargets;
 import com.android.systemui.animation.RemoteAnimationDelegate;
 import com.android.systemui.animation.RemoteAnimationRunnerCompat;
 
 import java.lang.ref.WeakReference;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * This class is needed to wrap any animation runner that is a part of the
@@ -65,6 +67,7 @@ public class LauncherAnimationRunner extends RemoteAnimationRunnerCompat {
     private final boolean mStartAtFrontOfQueue;
     private final WeakReference<RemoteAnimationFactory> mFactory;
 
+    private final AtomicLong mAnimationGeneration = new AtomicLong();
     private AnimationResult mAnimationResult;
 
     /**
@@ -86,7 +89,14 @@ public class LauncherAnimationRunner extends RemoteAnimationRunnerCompat {
             RemoteAnimationTarget[] wallpaperTargets,
             RemoteAnimationTarget[] nonAppTargets,
             Runnable runnable) {
+        long generation = mAnimationGeneration.incrementAndGet();
         Runnable r = () -> {
+            if (generation != mAnimationGeneration.get()) {
+                new RemoteAnimationTargets(appTargets, wallpaperTargets, nonAppTargets,
+                        RemoteAnimationTarget.MODE_OPENING).release();
+                UI_HELPER_EXECUTOR.execute(runnable);
+                return;
+            }
             finishExistingAnimation();
             mAnimationResult = new AnimationResult(() -> mAnimationResult = null, runnable);
             getFactory().onAnimationStart(transit, appTargets, wallpaperTargets, nonAppTargets,
@@ -118,7 +128,9 @@ public class LauncherAnimationRunner extends RemoteAnimationRunnerCompat {
     @BinderThread
     @Override
     public void onAnimationCancelled() {
+        long generation = mAnimationGeneration.get();
         postAsyncCallback(mHandler, () -> {
+            if (generation != mAnimationGeneration.get()) return;
             finishExistingAnimation();
             getFactory().onAnimationCancelled();
         });

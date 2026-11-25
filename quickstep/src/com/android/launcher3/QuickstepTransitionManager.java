@@ -20,6 +20,7 @@ import static android.app.ActivityTaskManager.INVALID_TASK_ID;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_HOME;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_STANDARD;
 import static android.app.WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW;
+import static android.app.WindowConfiguration.WINDOWING_MODE_PINNED;
 import static android.app.role.RoleManager.ROLE_HOME;
 import static android.provider.Settings.Secure.LAUNCHER_TASKBAR_EDUCATION_SHOWING;
 import static android.view.RemoteAnimationTarget.MODE_CLOSING;
@@ -642,8 +643,12 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         RemoteAnimationTarget target = null;
         for (RemoteAnimationTarget t : appTargets) {
             if (t.mode != MODE_OPENING) continue;
-            target = t;
-            break;
+            if (target == null) target = t;
+            if (mCosAppAnimations || t.windowConfiguration.getWindowingMode()
+                    != WINDOWING_MODE_PINNED) {
+                target = t;
+                break;
+            }
         }
         final int widthPx = mDeviceProfile.getDeviceProperties().getWidthPx();
         final int heightPx = mDeviceProfile.getDeviceProperties().getHeightPx();
@@ -2854,6 +2859,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         private final Rect mWindowOriginalBounds = new Rect();
         private final RectF mWidgetSourceBounds = new RectF();
         private final RectF mWidgetCropBounds = new RectF();
+        private final boolean mHasNonPinnedClosingTarget;
 
         private float mLastCornerRadius = -1f;
         private final Rect mTmpRect = new Rect();
@@ -2875,6 +2881,9 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 Rect closingWindowStartRect, Rect closingWindowOriginalRect,
                 float startWindowCornerRadius) {
             mAppTargets = appTargets;
+            mHasNonPinnedClosingTarget = !mCosAppAnimations && appTargets != null
+                    && Arrays.stream(appTargets).anyMatch(t -> t.mode == MODE_CLOSING
+                            && t.windowConfiguration.getWindowingMode() != WINDOWING_MODE_PINNED);
             mStartRadius = startWindowCornerRadius;
             mEndRadius = Math.max(1, targetRect.width()) / 2f;
             mSurfaceApplier = new SurfaceTransactionApplier(mDragLayer);
@@ -2884,7 +2893,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             // transfer the coordinate based on animation target.
             if (mAppTargets != null) {
                 for (RemoteAnimationTarget t : mAppTargets) {
-                    if (t.mode == MODE_CLOSING) {
+                    if (t.mode == MODE_CLOSING && (!mHasNonPinnedClosingTarget
+                            || t.windowConfiguration.getWindowingMode() != WINDOWING_MODE_PINNED)) {
                         final RectF transferRect = new RectF(mWindowStartBounds);
                         final RectF result = new RectF();
                         transferRectToTargetCoordinate(t, transferRect, false, result);
@@ -2917,6 +2927,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                     ? new SurfaceTransaction() : mTransaction;
             for (int i = mAppTargets.length - 1; i >= 0; i--) {
                 RemoteAnimationTarget target = mAppTargets[i];
+                if (mHasNonPinnedClosingTarget && target.windowConfiguration.getWindowingMode()
+                        == WINDOWING_MODE_PINNED) continue;
                 SurfaceProperties builder = transaction.forSurface(target.leash);
 
                 if (target.localBounds != null) {
