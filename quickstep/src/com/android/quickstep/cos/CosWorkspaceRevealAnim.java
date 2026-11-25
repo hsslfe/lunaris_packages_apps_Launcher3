@@ -48,6 +48,7 @@ import com.android.quickstep.views.RecentsView;
 public final class CosWorkspaceRevealAnim {
     private final AnimatorSet mAnimators = new AnimatorSet();
     private boolean mPrepared;
+    private boolean mStateTransitionTakingOver;
 
     public CosWorkspaceRevealAnim(QuickstepLauncher launcher, RectFSpringAnim sibling,
             RectF target, boolean fade, boolean blur) {
@@ -124,7 +125,10 @@ public final class CosWorkspaceRevealAnim {
         StateListener<LauncherState> stateListener = new StateListener<>() {
             @Override
             public void onStateTransitionStart(LauncherState state) {
-                if (state != NORMAL) mAnimators.cancel();
+                if (state != NORMAL) {
+                    mStateTransitionTakingOver = true;
+                    mAnimators.cancel();
+                }
             }
         };
         prepare.addListener(new AnimatorListenerAdapter() {
@@ -132,6 +136,7 @@ public final class CosWorkspaceRevealAnim {
             public void onAnimationStart(Animator animation) {
                 InteractionBoost.requestForAnimation(workspace);
                 mPrepared = true;
+                mStateTransitionTakingOver = false;
                 launcher.getStateManager().createAtomicAnimation(BACKGROUND_APP, NORMAL, setup)
                         .start();
                 launcher.<RecentsView>getOverviewPanel().forceFinishScroller();
@@ -166,10 +171,13 @@ public final class CosWorkspaceRevealAnim {
                 Luminous.cancel(hotseat, Luminous.ALPHA);
                 workspace.setAlpha(1f);
                 hotseat.setAlpha(1f);
-                WORKSPACE_SCALE_PROPERTY_FACTORY.get(SCALE_INDEX_WORKSPACE_STATE)
-                        .setValue(launcher.getWorkspace(), 1f);
-                HOTSEAT_SCALE_PROPERTY_FACTORY.get(SCALE_INDEX_WORKSPACE_STATE)
-                        .setValue(launcher.getHotseat(), 1f);
+                // Leave state-owned properties to the incoming launcher transition.
+                if (!mStateTransitionTakingOver) {
+                    WORKSPACE_SCALE_PROPERTY_FACTORY.get(SCALE_INDEX_WORKSPACE_STATE)
+                            .setValue(launcher.getWorkspace(), 1f);
+                    HOTSEAT_SCALE_PROPERTY_FACTORY.get(SCALE_INDEX_WORKSPACE_STATE)
+                            .setValue(launcher.getHotseat(), 1f);
+                }
                 if (original != null) {
                     target.set(original);
                     if (sibling != null) sibling.onTargetPositionChanged();
@@ -178,7 +186,9 @@ public final class CosWorkspaceRevealAnim {
                 Animations.Companion.setOngoingAnimation(hotseat, null);
                 depth.setAppAnimationBlur(-1f);
                 depth.pauseBlursOnWindows(false);
-                depth.stateDepth.setValue(launcher.getStateManager().getState().getDepth(launcher));
+                if (!mStateTransitionTakingOver) {
+                    depth.stateDepth.setValue(launcher.getStateManager().getState().getDepth(launcher));
+                }
             }
         });
     }
