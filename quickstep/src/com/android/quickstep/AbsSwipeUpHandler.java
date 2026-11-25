@@ -2577,12 +2577,14 @@ public abstract class AbsSwipeUpHandler<
     }
 
     private void cleanUpOnFailedRecentsAnimation(@NonNull String reason) {
+        final RecentsAnimationController controller = mRecentsAnimationController;
         mContextInitListener.unregister(reason);
         mStateCallback.setStateOnUiThread(STATE_GESTURE_CANCELLED | STATE_HANDLER_INVALIDATED);
         // Defer clearing the controller and the targets until after we've updated the state
         mRecentsAnimationController = null;
         mRecentsAnimationTargets = null;
-        if (mRecentsView != null) {
+        if (mRecentsView != null && controller != null
+                && mRecentsView.getRecentsAnimationController() == controller) {
             mRecentsView.setRecentsAnimationTargets(null, null);
         }
         if (!mGestureState.useSyntheticRecentsTransition()) {
@@ -3147,7 +3149,8 @@ public abstract class AbsSwipeUpHandler<
 
         mRecentsView.addOnScrollChangedListener(mOnRecentsScrollListener);
         runOnRecentsAnimationAndLauncherBound(() -> {
-            if (mRecentsView == null) {
+            if (mRecentsView == null || mRecentsAnimationController == null
+                    || mRecentsAnimationTargets == null) {
                 return;
             }
             mRecentsView.setRecentsAnimationTargets(
@@ -3273,9 +3276,12 @@ public abstract class AbsSwipeUpHandler<
 
     @Override
     public void onRecentsAnimationFinished(@NonNull RecentsAnimationController controller) {
+        if (mRecentsAnimationController != controller) {
+            return;
+        }
         mRecentsAnimationController = null;
         mRecentsAnimationTargets = null;
-        if (mRecentsView != null) {
+        if (mRecentsView != null && mRecentsView.getRecentsAnimationController() == controller) {
             mRecentsView.setRecentsAnimationTargets(null, null);
         }
     }

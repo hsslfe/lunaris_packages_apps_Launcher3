@@ -205,9 +205,10 @@ class RecentsViewStateController(private val launcher: QuickstepLauncher) :
             LINEAR,
         )
 
+        val recentsSessionGeneration = recentsView.recentsSessionGeneration
         builder.addEndListener { success: Boolean ->
             if (!success && !toState.isRecentsViewVisible) {
-                recentsView.reset()
+                recentsView.resetAfterCancelledStateTransition(recentsSessionGeneration)
             }
         }
     }

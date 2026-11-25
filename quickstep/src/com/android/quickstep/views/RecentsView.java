@@ -538,6 +538,8 @@ public abstract class RecentsView<
     protected final BaseContainerInterface<STATE_TYPE, ?> mContainerInterface;
     @Nullable
     protected RecentsAnimationController mRecentsAnimationController;
+    // Invalidates cleanup work created before a new gesture or overview session.
+    private long mRecentsSessionGeneration;
     @Nullable
     protected SurfaceTransactionApplier mSyncTransactionApplier;
     protected int mTaskWidth;
@@ -1765,6 +1767,9 @@ public abstract class RecentsView<
     }
 
     public void setOverviewStateEnabled(boolean enabled) {
+        if (enabled && !mOverviewStateEnabled) {
+            mRecentsSessionGeneration++;
+        }
         mOverviewStateEnabled = enabled;
         updateTaskStackListenerState();
         mOrientationState.setRotationWatcherEnabled(enabled);
@@ -2924,6 +2929,19 @@ public abstract class RecentsView<
     public abstract StateManager<STATE_TYPE,
             ? extends StatefulContainer<STATE_TYPE>> getStateManager();
 
+    public long getRecentsSessionGeneration() {
+        return mRecentsSessionGeneration;
+    }
+
+    /** A cancelled state animation must not reset the gesture taking its place. */
+    public void resetAfterCancelledStateTransition(long generation) {
+        if (generation != mRecentsSessionGeneration || isGestureActive()
+                || (mRecentsAnimationController != null && !mEnableDrawingLiveTile)) {
+            return;
+        }
+        reset();
+    }
+
     public void reset() {
         Log.d(TAG, "reset - mEnableDrawingLiveTile: " + mEnableDrawingLiveTile
                 + ", mRecentsAnimationController: " + mRecentsAnimationController);
@@ -2949,11 +2967,12 @@ public abstract class RecentsView<
         if (mEnableDrawingLiveTile && mRecentsAnimationController != null) {
             // We own mRecentsAnimationController, finish it now to clean up.
             finishRecentsAnimation(true /* toHome */, null);
-        } else {
-            // We don't own mRecentsAnimationController, just clear the reference.
+        } else if (mRecentsAnimationController == null || !isAttachedToWindow()) {
             mRecentsAnimationController = null;
             cleanupRemoteTargets();
         }
+        // A non-live controller on an attached view still belongs to the swipe handler.
+        // Keep it and its targets until that handler finishes or cancels the animation.
         setEnableDrawingLiveTile(false);
         mBlurUtils.setDrawLiveTileBelowRecents(false);
 
@@ -2968,7 +2987,17 @@ public abstract class RecentsView<
         // visible anyway), so defer by a frame to get off the critical path, e.g. app to home.
         // Defer onto the main thread rather than the view message queue since this will not always
         // be called in the Recents In Window case.
-        MAIN_EXECUTOR.getHandler().post(this::onReset);
+        final long generation = mRecentsSessionGeneration;
+        final RunnableList sideTaskLaunchCallback = mSideTaskLaunchCallback;
+        mSideTaskLaunchCallback = null;
+        MAIN_EXECUTOR.getHandler().post(() -> {
+            if (generation == mRecentsSessionGeneration && !isGestureActive()) {
+                onReset();
+            }
+            if (sideTaskLaunchCallback != null) {
+                sideTaskLaunchCallback.executeAllAndDestroy();
+            }
+        });
     }
 
     private void onReset() {
@@ -2981,7 +3010,6 @@ public abstract class RecentsView<
         if (enableRefactorTaskThumbnail()) {
             mRecentsViewModel.onReset();
         }
-        executeSideTaskLaunchCallback();
     }
 
     public int getRunningTaskViewId() {
@@ -3100,6 +3128,7 @@ public abstract class RecentsView<
      */
     public void onGestureAnimationStart(GroupedTaskInfo groupedTaskInfo) {
         Log.d(TAG, "onGestureAnimationStart - groupedTaskInfo: " + groupedTaskInfo);
+        mRecentsSessionGeneration++;
         setActiveGestureGroupedTaskInfo(groupedTaskInfo);
 
         // This needs to be called before the other states are set since it can create the task view
@@ -6235,8 +6264,18 @@ public abstract class RecentsView<
         Log.d(TAG, "setRecentsAnimationTargets "
                 + "- recentsAnimationController: " + recentsAnimationController
                 + ", recentsAnimationTargets: " + recentsAnimationTargets);
+        if (recentsAnimationController != null
+                && recentsAnimationController != mRecentsAnimationController) {
+            mRecentsSessionGeneration++;
+            // A newly bound controller is owned by the incoming swipe, not the old live tile.
+            setEnableDrawingLiveTile(false);
+        }
         mRecentsAnimationController = recentsAnimationController;
-        mSplitSelectStateController.setRecentsAnimationRunning(true);
+        mSplitSelectStateController.setRecentsAnimationRunning(recentsAnimationController != null);
+        if (recentsAnimationController == null) {
+            cleanupRemoteTargets();
+            return;
+        }
         if (recentsAnimationTargets == null || recentsAnimationTargets.apps.length == 0) {
             return;
         }

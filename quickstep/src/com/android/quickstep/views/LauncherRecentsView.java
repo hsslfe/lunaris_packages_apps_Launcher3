@@ -58,6 +58,8 @@ import kotlin.Unit;
 public class LauncherRecentsView extends RecentsView<QuickstepLauncher, LauncherState>
         implements StateListener<LauncherState> {
 
+    private long mStateTransitionSessionGeneration;
+
     public LauncherRecentsView(Context context) {
         this(context, null);
     }
@@ -131,6 +133,7 @@ public class LauncherRecentsView extends RecentsView<QuickstepLauncher, Launcher
     @Override
     public void onStateTransitionStart(LauncherState toState) {
         setOverviewStateEnabled(toState.isRecentsViewVisible);
+        mStateTransitionSessionGeneration = getRecentsSessionGeneration();
 
         if (enableGridOnlyOverview()) {
             if (toState.displayOverviewTasksAsGrid(mContainer.getDeviceProfile())) {
@@ -168,8 +171,9 @@ public class LauncherRecentsView extends RecentsView<QuickstepLauncher, Launcher
             }
         }
 
-        if (!finalState.isRecentsViewVisible) {
-            // Clean-up logic that occurs when recents is no longer in use/visible.
+        if (!finalState.isRecentsViewVisible
+                && mStateTransitionSessionGeneration == getRecentsSessionGeneration()) {
+            // Do not reset a gesture that started while this state was transitioning out.
             reset();
         }
         boolean isOverlayEnabled = finalState == OVERVIEW || finalState == OVERVIEW_MODAL_TASK;
