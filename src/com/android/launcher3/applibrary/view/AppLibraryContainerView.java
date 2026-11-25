@@ -20,6 +20,8 @@ import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.view.OneShotPreDrawListener;
+import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -67,6 +69,8 @@ public class AppLibraryContainerView extends FrameLayout
     private ValueAnimator mBlurAnimator;
     private float mCategoryBlurRadius;
     private boolean mPendingRecentAppsBind;
+    private DefaultItemAnimator mRecentRowAnimator;
+    private int mRecentRowAnimationGeneration;
     private boolean mShowLabels;
     private boolean mTouchInProgress;
     private final int mTouchSlop;
@@ -348,6 +352,7 @@ public class AppLibraryContainerView extends FrameLayout
 
     public void onLibraryOpening() {
         if (mCategoryAdapter != null) mCategoryAdapter.setRecentAnimationsEnabled(false);
+        bindPendingRecentApps();
         if (mModel != null && isAttachedToWindow() && getWindowVisibility() == View.VISIBLE) {
             mModel.refreshRecentApps();
         }
@@ -365,6 +370,7 @@ public class AppLibraryContainerView extends FrameLayout
 
     public void onLibraryClosed() {
         onLibraryClosing();
+        finishRecentRowLayoutAnimation();
         if (mCategoryAdapter != null && mGridView != null) {
             mCategoryAdapter.finishRecentAnimations(mGridView);
         }
@@ -409,6 +415,11 @@ public class AppLibraryContainerView extends FrameLayout
     }
 
     private boolean shouldDeferRecentAppsBind() {
+        if (mGridView != null && mGridView.isComputingLayout()) {
+            removeCallbacks(mBindPendingRecentApps);
+            post(mBindPendingRecentApps);
+            return true;
+        }
         if (!isShown() || getWindowVisibility() != View.VISIBLE) return false;
         if (mTouchInProgress
                 || (mGridView != null
@@ -432,16 +443,89 @@ public class AppLibraryContainerView extends FrameLayout
     private void bindRecentApps() {
         if (mCategoryAdapter == null) return;
 
-        // An asynchronously inserted first row must not move the existing first category
-        // into the top slot while leaving the new recent-app row above the viewport.
-        // Capture the scroll position before notifying the adapter; never snap a user who
-        // has intentionally scrolled down back to the start.
-        boolean rowPresenceChanged =
-                mCategoryAdapter.isRecentAppsPosition(0) != !mRecentApps.isEmpty();
-        boolean keepAtStart = rowPresenceChanged && mGridView != null
-                && !mGridView.canScrollVertically(-1);
+        boolean hadRecentRow = mCategoryAdapter.isRecentAppsPosition(0);
+        boolean hasRecentRow = !mRecentApps.isEmpty();
+        if (hadRecentRow == hasRecentRow || mGridView == null) {
+            mCategoryAdapter.setRecentApps(mRecentApps);
+            return;
+        }
+
+        // Keep the start anchored so a late recent row cannot appear above the viewport.
+        // When scrolled, anchor the same category and its decorated pixel offset instead.
+        boolean keepAtStart = !mGridView.canScrollVertically(-1);
+        LinearLayoutManager layout =
+                mGridView.getLayoutManager() instanceof LinearLayoutManager manager
+                        ? manager : null;
+        int anchor = RecyclerView.NO_POSITION;
+        int offset = 0;
+        if (!keepAtStart && layout != null && !mGridView.hasPendingAdapterUpdates()) {
+            int first = layout.findFirstVisibleItemPosition();
+            if (first != RecyclerView.NO_POSITION) {
+                int category = Math.max(first, hadRecentRow ? 1 : 0);
+                View child = layout.findViewByPosition(category);
+                if (child != null) {
+                    RecyclerView.LayoutParams params =
+                            (RecyclerView.LayoutParams) child.getLayoutParams();
+                    offset = layout.getDecoratedTop(child) - params.topMargin
+                            - mGridView.getPaddingTop();
+                    anchor = category + (hasRecentRow ? 1 : -1);
+                }
+            }
+        }
+
+        // Only animate a structural row change on a settled, visible library. Normal
+        // recent icon updates still use the adapter's existing payload animation.
+        if (isLibraryFullyOpen() && mGridView.isAttachedToWindow()
+                && mGridView.isShown() && mGridView.isLaidOut()
+                && mGridView.getAlpha() == 1f && !mTouchInProgress
+                && mGridView.getWindowVisibility() == View.VISIBLE
+                && mGridView.getScrollState() == RecyclerView.SCROLL_STATE_IDLE
+                && ValueAnimator.areAnimatorsEnabled()) {
+            animateRecentRowLayoutChange();
+        }
         mCategoryAdapter.setRecentApps(mRecentApps);
-        if (keepAtStart) scrollCategoryGridToStart();
+        if (keepAtStart) {
+            scrollCategoryGridToStart();
+        } else if (anchor != RecyclerView.NO_POSITION && layout != null
+                && anchor < mCategoryAdapter.getItemCount()) {
+            layout.scrollToPositionWithOffset(anchor, offset);
+        }
+    }
+
+    private void animateRecentRowLayoutChange() {
+        // Scope RecyclerView's move/add/remove animations to this one structural update.
+        // Do not enable item animations for all category or icon refreshes.
+        if (mRecentRowAnimator == null) {
+            DefaultItemAnimator animator = new DefaultItemAnimator();
+            animator.setSupportsChangeAnimations(false);
+            animator.setMoveDuration(180);
+            animator.setAddDuration(120);
+            animator.setRemoveDuration(120);
+            mRecentRowAnimator = animator;
+            mGridView.setItemAnimator(animator);
+        }
+        DefaultItemAnimator animator = mRecentRowAnimator;
+        int generation = ++mRecentRowAnimationGeneration;
+        OneShotPreDrawListener.add(mGridView, () -> {
+            if (mRecentRowAnimator != animator
+                    || generation != mRecentRowAnimationGeneration) return;
+            animator.isRunning(() -> mGridView.post(() -> {
+                if (mRecentRowAnimator == animator
+                        && generation == mRecentRowAnimationGeneration
+                        && !animator.isRunning()) {
+                    finishRecentRowLayoutAnimation();
+                }
+            }));
+        });
+    }
+
+    private void finishRecentRowLayoutAnimation() {
+        ++mRecentRowAnimationGeneration;
+        DefaultItemAnimator animator = mRecentRowAnimator;
+        mRecentRowAnimator = null;
+        if (animator != null && mGridView != null && mGridView.getItemAnimator() == animator) {
+            mGridView.setItemAnimator(null);
+        }
     }
 
     private void scrollCategoryGridToStart() {

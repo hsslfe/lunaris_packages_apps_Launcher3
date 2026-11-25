@@ -195,6 +195,48 @@ public class AppLibraryScrollingTest {
     }
 
     @Test
+    public void recentRowChanges_preserveScrolledCategoryAndPixelOffset() {
+        AppLibraryContainerView library = createLibrary();
+        try {
+            RecyclerView grid = library.getGridView();
+            GridLayoutManager layout = (GridLayoutManager) grid.getLayoutManager();
+            AppInfo recent = new AppInfo();
+            recent.title = "Recent app";
+            recent.user = Process.myUserHandle();
+            recent.componentName = new ComponentName("test.app", "test.app.Main");
+            recent.intent = new Intent().setComponent(recent.componentName);
+            recent.bitmap = BitmapInfo.fromBitmap(
+                    Bitmap.createBitmap(48, 48, Bitmap.Config.ARGB_8888));
+
+            for (int columns : new int[] {2, 3}) {
+                layout.setSpanCount(columns);
+                library.onRecentAppsUpdated(List.of());
+                layout.scrollToPositionWithOffset(0, 0);
+                layoutLibrary(library);
+                grid.scrollBy(0, 100);
+                int position = layout.findFirstVisibleItemPosition();
+                View category = layout.findViewByPosition(position);
+                assertNotNull(category);
+                int top = layout.getDecoratedTop(category);
+
+                library.onRecentAppsUpdated(List.of(recent));
+                layoutLibrary(library);
+                View shifted = layout.findViewByPosition(position + 1);
+                assertNotNull(shifted);
+                assertEquals(top, layout.getDecoratedTop(shifted));
+
+                library.onRecentAppsUpdated(List.of());
+                layoutLibrary(library);
+                category = layout.findViewByPosition(position);
+                assertNotNull(category);
+                assertEquals(top, layout.getDecoratedTop(category));
+            }
+        } finally {
+            library.reset();
+        }
+    }
+
+    @Test
     public void appDataRefresh_updatesAnOpenFilteredList_withoutClearingItsQuery() {
         AppLibraryContainerView library = createLibrary();
         AppLibraryModel model = mock(AppLibraryModel.class);
