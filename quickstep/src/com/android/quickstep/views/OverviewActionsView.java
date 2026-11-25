@@ -82,6 +82,10 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
     private static final AccelerateInterpolator PRESS_DOWN_INTERPOLATOR = new AccelerateInterpolator(1.5f);
     private static final OvershootInterpolator SPRING_BACK_INTERPOLATOR = new OvershootInterpolator(2.5f);
 
+    private static final float BUTTON_PRESS_SCALE = 0.82f;
+    private static final long BUTTON_PRESS_DURATION = 150L;
+    private static final long BUTTON_RELEASE_DURATION = 300L;
+
     private static final boolean DEBUG = false;
     private final Rect mInsets = new Rect();
 
@@ -420,10 +424,10 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
 
     private void animateButtonPress(View view, @Nullable Runnable onPhase1Complete) {
         view.animate()
-                .scaleX(0.88f)
-                .scaleY(0.88f)
+                .scaleX(BUTTON_PRESS_SCALE)
+                .scaleY(BUTTON_PRESS_SCALE)
                 .alpha(0.75f)
-                .setDuration(100)
+                .setDuration(BUTTON_PRESS_DURATION)
                 .setInterpolator(PRESS_DOWN_INTERPOLATOR)
                 .withEndAction(() -> {
                     if (onPhase1Complete != null) {
@@ -439,7 +443,7 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
                 .scaleX(1f)
                 .scaleY(1f)
                 .alpha(1f)
-                .setDuration(200)
+                .setDuration(BUTTON_RELEASE_DURATION)
                 .setInterpolator(SPRING_BACK_INTERPOLATOR)
                 .start();
     }
@@ -460,10 +464,10 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
         // silently cancel the pending clear-all action.
         view.animate().cancel();
         ObjectAnimator press = ObjectAnimator.ofPropertyValuesHolder(view,
-                PropertyValuesHolder.ofFloat(View.SCALE_X, 0.88f),
-                PropertyValuesHolder.ofFloat(View.SCALE_Y, 0.88f),
+                PropertyValuesHolder.ofFloat(View.SCALE_X, BUTTON_PRESS_SCALE),
+                PropertyValuesHolder.ofFloat(View.SCALE_Y, BUTTON_PRESS_SCALE),
                 PropertyValuesHolder.ofFloat(View.ALPHA, 0.75f));
-        press.setDuration(100);
+        press.setDuration(BUTTON_PRESS_DURATION);
         press.setInterpolator(PRESS_DOWN_INTERPOLATOR);
         mClearAllPressAnimator = press;
         press.addListener(new AnimatorListenerAdapter() {
