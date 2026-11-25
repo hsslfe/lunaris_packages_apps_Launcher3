@@ -430,8 +430,27 @@ public class AppLibraryContainerView extends FrameLayout
     }
 
     private void bindRecentApps() {
-        if (mCategoryAdapter != null) {
-            mCategoryAdapter.setRecentApps(mRecentApps);
+        if (mCategoryAdapter == null) return;
+
+        // An asynchronously inserted first row must not move the existing first category
+        // into the top slot while leaving the new recent-app row above the viewport.
+        // Capture the scroll position before notifying the adapter; never snap a user who
+        // has intentionally scrolled down back to the start.
+        boolean rowPresenceChanged =
+                mCategoryAdapter.isRecentAppsPosition(0) != !mRecentApps.isEmpty();
+        boolean keepAtStart = rowPresenceChanged && mGridView != null
+                && !mGridView.canScrollVertically(-1);
+        mCategoryAdapter.setRecentApps(mRecentApps);
+        if (keepAtStart) scrollCategoryGridToStart();
+    }
+
+    private void scrollCategoryGridToStart() {
+        if (mGridView == null) return;
+        if (mGridView.getLayoutManager() instanceof LinearLayoutManager layout) {
+            // scrollToPosition alone can keep an existing, partially visible item offset.
+            layout.scrollToPositionWithOffset(0, 0);
+        } else {
+            mGridView.scrollToPosition(0);
         }
     }
 
@@ -745,7 +764,7 @@ public class AppLibraryContainerView extends FrameLayout
             mGridView.stopScroll();
             SpringEdgeEffectFactory.finishSpringAnimations(mGridView);
             mGridView.setAlpha(1f);
-            mGridView.scrollToPosition(0);
+            scrollCategoryGridToStart();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 mGridView.setRenderEffect(null);
             }

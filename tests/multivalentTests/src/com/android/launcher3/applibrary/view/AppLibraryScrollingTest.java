@@ -126,6 +126,74 @@ public class AppLibraryScrollingTest {
         }
     }
 
+    private void layoutLibrary(AppLibraryContainerView library) {
+        library.measure(
+                View.MeasureSpec.makeMeasureSpec(480, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(800, View.MeasureSpec.EXACTLY));
+        library.layout(0, 0, 480, 800);
+    }
+
+    @Test
+    public void lateRecentRowInsertion_keepsFirstRowAtTop() {
+        AppLibraryContainerView library = createLibrary();
+        try {
+            library.onRecentAppsUpdated(List.of());
+            layoutLibrary(library);
+            RecyclerView grid = library.getGridView();
+            GridLayoutManager layout = (GridLayoutManager) grid.getLayoutManager();
+            assertEquals(0, layout.findFirstVisibleItemPosition());
+
+            AppInfo recent = new AppInfo();
+            recent.title = "Recent app";
+            recent.user = Process.myUserHandle();
+            recent.componentName = new ComponentName("test.app", "test.app.Main");
+            recent.intent = new Intent().setComponent(recent.componentName);
+            recent.bitmap = BitmapInfo.fromBitmap(
+                    Bitmap.createBitmap(48, 48, Bitmap.Config.ARGB_8888));
+            library.onRecentAppsUpdated(List.of(recent));
+            layoutLibrary(library);
+
+            View row = layout.findViewByPosition(0);
+            assertNotNull(row);
+            assertEquals(R.id.app_library_recent_apps, row.getId());
+            assertEquals(0, layout.findFirstVisibleItemPosition());
+            assertEquals(grid.getPaddingTop(),
+                    layout.getDecoratedTop(row)
+                            - ((RecyclerView.LayoutParams) row.getLayoutParams()).topMargin);
+
+            library.onRecentAppsUpdated(List.of());
+            layoutLibrary(library);
+            assertEquals(0, layout.findFirstVisibleItemPosition());
+        } finally {
+            library.reset();
+        }
+    }
+
+    @Test
+    public void lateRecentRowInsertion_doesNotResetScrolledCategories() {
+        AppLibraryContainerView library = createLibrary();
+        try {
+            library.onRecentAppsUpdated(List.of());
+            layoutLibrary(library);
+            RecyclerView grid = library.getGridView();
+            grid.scrollBy(0, 100);
+            assertTrue(grid.canScrollVertically(-1));
+
+            AppInfo recent = new AppInfo();
+            recent.title = "Recent app";
+            recent.user = Process.myUserHandle();
+            recent.componentName = new ComponentName("test.app", "test.app.Main");
+            recent.intent = new Intent().setComponent(recent.componentName);
+            recent.bitmap = BitmapInfo.fromBitmap(
+                    Bitmap.createBitmap(48, 48, Bitmap.Config.ARGB_8888));
+            library.onRecentAppsUpdated(List.of(recent));
+            layoutLibrary(library);
+            assertTrue(grid.canScrollVertically(-1));
+        } finally {
+            library.reset();
+        }
+    }
+
     @Test
     public void appDataRefresh_updatesAnOpenFilteredList_withoutClearingItsQuery() {
         AppLibraryContainerView library = createLibrary();
