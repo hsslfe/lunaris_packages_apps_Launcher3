@@ -1,7 +1,6 @@
 package com.android.launcher3.applibrary.view;
 
 import static com.android.app.animation.Interpolators.EMPHASIZED;
-import static com.android.app.animation.Interpolators.EMPHASIZED_DECELERATE;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -16,6 +15,7 @@ import android.view.CrossWindowBlurListeners;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
 import android.view.View;
+import android.view.animation.LinearInterpolator;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
@@ -52,11 +52,26 @@ public class AppLibraryContainerView extends FrameLayout
 
     private static final float CATEGORY_BLUR_RADIUS = 35f;
     private static final int PULL_TO_SEARCH_DISTANCE_DP = 96;
+    private static final long SEARCH_OPEN_DURATION = 450;
+    private static final long SEARCH_CLOSE_DURATION = 400;
+    private static final int SEARCH_LIFT_DP = 64;
+    private static final int SEARCH_OVERSHOOT_DP = 8;
+    private static final float SEARCH_LAND_PROGRESS = 0.68f;
+    private static final float SEARCH_GRID_FADE_END = 0.50f;
+    private static final float SEARCH_LIST_FADE_START = 0.24f;
+    private static final float SEARCH_LIST_FADE_END = 0.64f;
+    private static final LinearInterpolator SEARCH_TIMELINE = new LinearInterpolator();
 
     private View mAppLibraryContent;
     private AppLibrarySearchBar mSearchBar;
     private RecyclerView mGridView;
     private RecyclerView mSearchResultsView;
+    private View mSearchListMotion;
+    private ValueAnimator mSearchTransitionAnimator;
+    private float mSearchProgress;
+    private boolean mSearchTarget;
+    private boolean mBlockSearchTransitionTouch;
+    private boolean mAlphabetTouchSequence;
     private AppLibraryAlphabetIndexer mAlphabetIndexer;
     private AppCategoryExpandedSheet mExpandedSheet;
 
@@ -109,15 +124,19 @@ public class AppLibraryContainerView extends FrameLayout
         mSearchBar = findViewById(R.id.app_library_search_bar);
         mGridView = findViewById(R.id.app_library_grid_view);
         mSearchResultsView = findViewById(R.id.app_library_search_results_view);
+        mSearchListMotion = findViewById(R.id.app_library_search_list_motion);
         mAlphabetIndexer = findViewById(R.id.app_library_alphabet_indexer);
         mExpandedSheet = findViewById(R.id.app_library_expanded_sheet);
         mShowLabels = LauncherPrefs.APP_LIBRARY_SHOW_LABELS.get(getContext());
 
         if (mAlphabetIndexer != null) {
+            mAlphabetIndexer.setLetterPreview(findViewById(R.id.app_library_alphabet_preview));
             mAlphabetIndexer.setOnSectionSelectedListener(section -> {
                 if (mSearchAdapter != null && mSearchResultsView != null) {
                     int pos = mSearchAdapter.getPositionForSection(section);
                     if (pos >= 0) {
+                        mSearchResultsView.stopScroll();
+                        SpringEdgeEffectFactory.finishSpringAnimations(mSearchResultsView);
                         RecyclerView.LayoutManager lm = mSearchResultsView.getLayoutManager();
                         if (lm instanceof LinearLayoutManager) {
                             ((LinearLayoutManager) lm).scrollToPositionWithOffset(pos, 0);
@@ -224,6 +243,7 @@ public class AppLibraryContainerView extends FrameLayout
             getParent().requestDisallowInterceptTouchEvent(false);
         }
         if (!hasWindowFocus) {
+            if (mAlphabetIndexer != null) mAlphabetIndexer.cancelDrag();
             cancelPullToSearch();
             mTouchInProgress = false;
         } else {
@@ -244,6 +264,29 @@ public class AppLibraryContainerView extends FrameLayout
     public boolean dispatchTouchEvent(MotionEvent ev) {
         int action = ev.getActionMasked();
         if (action == MotionEvent.ACTION_DOWN) {
+            Rect indexBounds = new Rect();
+            mAlphabetTouchSequence = mSearchBar != null && mSearchBar.isSearching()
+                    && mAlphabetIndexer != null && mAlphabetIndexer.isShown()
+                    && mAlphabetIndexer.getGlobalVisibleRect(indexBounds)
+                    && indexBounds.contains((int) ev.getRawX(), (int) ev.getRawY());
+            Rect searchBounds = new Rect();
+            // Once the incoming surface is opaque, allow normal interaction during
+            // the small remaining settle rather than blocking the entire animation.
+            boolean handingOff = mSearchTransitionAnimator != null
+                    && (mSearchTarget ? mSearchProgress < SEARCH_LAND_PROGRESS
+                            : mSearchProgress > 0.08f);
+            mBlockSearchTransitionTouch = handingOff
+                    && mSearchBar != null && mSearchBar.getGlobalVisibleRect(searchBounds)
+                    && ev.getRawY() >= searchBounds.bottom;
+        }
+        if (mBlockSearchTransitionTouch) {
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                mBlockSearchTransitionTouch = false;
+                mAlphabetTouchSequence = false;
+            }
+            return true;
+        }
+        if (action == MotionEvent.ACTION_DOWN) {
             mTouchInProgress = true;
             mDownX = ev.getX();
             mDownY = ev.getY();
@@ -252,7 +295,9 @@ public class AppLibraryContainerView extends FrameLayout
                 getParent().requestDisallowInterceptTouchEvent(true);
             } else if (mSearchBar != null && mSearchBar.isSearching()) {
                 mPullToSearchEligible = false;
-                getParent().requestDisallowInterceptTouchEvent(true);
+                if (!mAlphabetTouchSequence && getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(true);
+                }
             } else if (mGridView != null && isLibraryFullyOpen()) {
                 // A horizontal entry swipe must not arm pull-to-search.
                 Rect bounds = new Rect();
@@ -272,9 +317,11 @@ public class AppLibraryContainerView extends FrameLayout
             if (mExpandedSheet != null && mExpandedSheet.isOpen()) {
                 getParent().requestDisallowInterceptTouchEvent(true);
             } else if (mSearchBar != null && mSearchBar.isSearching()) {
-                getParent().requestDisallowInterceptTouchEvent(true);
-                if (dy > 20 && mSearchBar != null) {
-                    mSearchBar.hideKeyboard();
+                // The indexer claims only a confirmed vertical drag. Leave horizontal
+                // edge gestures alone and do not resize the list by hiding IME mid-drag.
+                if (!mAlphabetTouchSequence) {
+                    if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+                    if (dy > 20) mSearchBar.hideKeyboard();
                 }
             } else {
                 if (absDy > absDx && absDy > mTouchSlop) {
@@ -303,6 +350,7 @@ public class AppLibraryContainerView extends FrameLayout
             mPullToSearchEligible = false;
             mTouchInProgress = false;
             boolean result = super.dispatchTouchEvent(ev);
+            mAlphabetTouchSequence = false;
             // Finish RecyclerView's gesture before opening the list and requesting the keyboard.
             if (openSearch && mSearchBar != null) mSearchBar.setSearching(true);
             bindPendingRecentApps();
@@ -365,11 +413,16 @@ public class AppLibraryContainerView extends FrameLayout
     }
 
     public void onLibraryClosing() {
+        if (mAlphabetIndexer != null) mAlphabetIndexer.cancelDrag();
         if (mCategoryAdapter != null) mCategoryAdapter.setRecentAnimationsEnabled(false);
     }
 
     public void onLibraryClosed() {
         onLibraryClosing();
+        if (mSearchTransitionAnimator != null) {
+            cancelSearchTransition();
+            finishSearchTransition(mSearchTarget);
+        }
         finishRecentRowLayoutAnimation();
         if (mCategoryAdapter != null && mGridView != null) {
             mCategoryAdapter.finishRecentAnimations(mGridView);
@@ -477,7 +530,8 @@ public class AppLibraryContainerView extends FrameLayout
         // recent icon updates still use the adapter's existing payload animation.
         if (isLibraryFullyOpen() && mGridView.isAttachedToWindow()
                 && mGridView.isShown() && mGridView.isLaidOut()
-                && mGridView.getAlpha() == 1f && !mTouchInProgress
+                && mGridView.getAlpha() == 1f && mSearchTransitionAnimator == null
+                && !mSearchTarget && !mTouchInProgress
                 && mGridView.getWindowVisibility() == View.VISIBLE
                 && mGridView.getScrollState() == RecyclerView.SCROLL_STATE_IDLE
                 && ValueAnimator.areAnimatorsEnabled()) {
@@ -618,6 +672,8 @@ public class AppLibraryContainerView extends FrameLayout
     /** Only show A-Z for the active, unfiltered search list, never over category cards. */
     private void updateAlphabetIndexerVisibility() {
         if (mAlphabetIndexer == null) return;
+        // Let the outgoing index fade with its list, without exposing it over settled cards.
+        if (mSearchTransitionAnimator != null && !mSearchTarget) return;
         boolean show = mSearchBar != null && mSearchBar.isSearching()
                 && mSearchResultsView != null
                 && mSearchResultsView.getVisibility() == View.VISIBLE
@@ -628,7 +684,8 @@ public class AppLibraryContainerView extends FrameLayout
 
     @Override
     public void onSearchQueryChanged(String query) {
-        if (mModel != null && mSearchAdapter != null) {
+        if (mModel != null && mSearchAdapter != null && mSearchBar != null
+                && mSearchBar.isSearching()) {
             boolean isEmpty = query == null || query.trim().isEmpty();
             if (isEmpty) {
                 mSearchAdapter.setApps(mModel.getAllApps(), true);
@@ -670,62 +727,140 @@ public class AppLibraryContainerView extends FrameLayout
 
     @Override
     public void onSearchStateChanged(boolean isSearching) {
+        if (mAlphabetIndexer != null) mAlphabetIndexer.cancelDrag();
         if (mExpandedSheet != null && mExpandedSheet.isOpen()) {
             mExpandedSheet.hide(false);
-            if (mAppLibraryContent != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                mAppLibraryContent.setRenderEffect(null);
-            }
+            clearCategoryBackgroundBlur();
         }
 
-        if (mSearchResultsView != null) {
-            mSearchResultsView.animate().setListener(null).cancel();
+        cancelSearchTransition();
+        mSearchTarget = isSearching;
+        if (isSearching && mModel != null && mSearchAdapter != null) {
+            mSearchAdapter.setApps(mModel.getAllApps(), true);
         }
+
+        if (mGridView == null || mSearchResultsView == null || mSearchListMotion == null) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            mGridView.setRenderEffect(null);
+            mSearchResultsView.setRenderEffect(null);
+        }
+
+        float target = isSearching ? 1f : 0f;
+        if (!isAttachedToWindow() || !isShown() || getWindowVisibility() != View.VISIBLE
+                || !ValueAnimator.areAnimatorsEnabled() || mSearchProgress == target) {
+            finishSearchTransition(isSearching);
+            return;
+        }
+
+        // Keep both surfaces drawn during the handoff. A reversal starts from the last
+        // rendered progress instead of resetting either surface to its initial position.
+        mGridView.setVisibility(View.VISIBLE);
+        mSearchResultsView.setVisibility(View.VISIBLE);
+        mGridView.setImportantForAccessibility(isSearching
+                ? View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                : View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+        mSearchListMotion.setImportantForAccessibility(isSearching
+                ? View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+                : View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        if (isSearching) updateAlphabetIndexerVisibility();
+        applySearchProgress(mSearchProgress);
+
+        ValueAnimator animator = ValueAnimator.ofFloat(mSearchProgress, target);
+        mSearchTransitionAnimator = animator;
+        long duration = isSearching ? SEARCH_OPEN_DURATION : SEARCH_CLOSE_DURATION;
+        animator.setDuration(Math.max(1L, Math.round(duration * Math.abs(target - mSearchProgress))));
+        // Each property has its own timing window. Keep the shared timeline linear
+        // so the lift and settling phases retain their full duration.
+        animator.setInterpolator(SEARCH_TIMELINE);
+        animator.addUpdateListener(value -> applySearchProgress((Float) value.getAnimatedValue()));
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (mSearchTransitionAnimator != animation) return;
+                mSearchTransitionAnimator = null;
+                finishSearchTransition(isSearching);
+            }
+        });
+        animator.start();
+    }
+
+    private void applySearchProgress(float progress) {
+        mSearchProgress = progress;
+        float gridFade = smoothSearchPhase(progress, 0f, SEARCH_GRID_FADE_END);
+        // Move the cards out of the way before the list becomes fully opaque.
+        // The grid is still laid out, preserving its scroll position on return.
+        mGridView.setAlpha(1f - gridFade);
+        float gridScale = 1f - 0.06f * gridFade;
+        mGridView.setScaleX(gridScale);
+        mGridView.setScaleY(gridScale);
+        mGridView.setVisibility(progress >= SEARCH_GRID_FADE_END
+                ? View.INVISIBLE : View.VISIBLE);
+
+        float listAlpha = smoothSearchPhase(progress, SEARCH_LIST_FADE_START,
+                SEARCH_LIST_FADE_END);
+        mSearchResultsView.setAlpha(listAlpha);
+        mSearchListMotion.setVisibility(!mSearchTarget && listAlpha == 0f
+                ? View.INVISIBLE : View.VISIBLE);
+        if (mAlphabetIndexer != null) mAlphabetIndexer.setAlpha(listAlpha);
+
+        // A deliberate upward lift, followed by a separate, longer settling phase.
+        // Animate the parent instead of RecyclerView's overscroll translation.
+        mSearchListMotion.setTranslationY(getResources().getDisplayMetrics().density
+                * searchListOffsetDp(progress));
+    }
+
+    static float smoothSearchPhase(float progress, float start, float end) {
+        float fraction = Math.max(0f, Math.min(1f, (progress - start) / (end - start)));
+        return fraction * fraction * (3f - 2f * fraction);
+    }
+
+    static float searchListOffsetDp(float progress) {
+        if (progress <= SEARCH_LAND_PROGRESS) {
+            float lift = smoothSearchPhase(progress, 0f, SEARCH_LAND_PROGRESS);
+            return SEARCH_LIFT_DP - (SEARCH_LIFT_DP + SEARCH_OVERSHOOT_DP) * lift;
+        }
+        float settle = smoothSearchPhase(progress, SEARCH_LAND_PROGRESS, 1f);
+        return -SEARCH_OVERSHOOT_DP * (1f - settle);
+    }
+
+    private void cancelSearchTransition() {
+        ValueAnimator animator = mSearchTransitionAnimator;
+        mSearchTransitionAnimator = null;
+        if (animator != null) {
+            animator.removeAllListeners();
+            animator.removeAllUpdateListeners();
+            animator.cancel();
+        }
+    }
+
+    private void finishSearchTransition(boolean searching) {
+        mSearchTarget = searching;
+        mSearchProgress = searching ? 1f : 0f;
         if (mGridView != null) {
-            mGridView.animate().cancel();
-        }
-
-        if (isSearching) {
-            if (mModel != null && mSearchAdapter != null) {
-                mSearchAdapter.setApps(mModel.getAllApps(), true);
-            }
-            if (mGridView != null) {
-                // The list surface stays, but only wallpaper should be visible through it.
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) mGridView.setRenderEffect(null);
-                mGridView.setAlpha(0f);
-                mGridView.setVisibility(View.INVISIBLE);
-            }
-            if (mSearchResultsView != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    mSearchResultsView.setRenderEffect(null);
-                }
-                if (mSearchResultsView.getVisibility() != View.VISIBLE) {
-                    mSearchResultsView.setAlpha(0f);
-                }
-                mSearchResultsView.setVisibility(View.VISIBLE);
-                mSearchResultsView.animate().alpha(1f).setDuration(280)
-                        .setInterpolator(EMPHASIZED_DECELERATE).setListener(null).start();
-            }
-        } else {
-            if (mGridView != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    mGridView.setRenderEffect(null);
-                }
-                mGridView.setVisibility(View.VISIBLE);
-                mGridView.animate().alpha(1f).setDuration(220)
-                        .setInterpolator(EMPHASIZED).setListener(null).start();
-            }
-            if (mSearchResultsView != null) {
-                mSearchResultsView.animate().alpha(0f).setDuration(180)
-                        .setInterpolator(EMPHASIZED).setListener(new AnimatorListenerAdapter() {
-                    @Override
-                    public void onAnimationEnd(Animator animation) {
-                        if (mSearchBar == null || !mSearchBar.isSearching()) {
-                            mSearchResultsView.setVisibility(View.GONE);
-                        }
-                    }
-                }).start();
+            mGridView.setVisibility(searching ? View.INVISIBLE : View.VISIBLE);
+            mGridView.setAlpha(searching ? 0f : 1f);
+            mGridView.setScaleX(searching ? 0.94f : 1f);
+            mGridView.setScaleY(searching ? 0.94f : 1f);
+            mGridView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+            if (searching) {
+                mGridView.stopScroll();
+                SpringEdgeEffectFactory.finishSpringAnimations(mGridView);
             }
         }
+        if (mSearchResultsView != null) {
+            mSearchResultsView.setVisibility(searching ? View.VISIBLE : View.GONE);
+            mSearchResultsView.setAlpha(searching ? 1f : 0f);
+            if (!searching) {
+                mSearchResultsView.stopScroll();
+                SpringEdgeEffectFactory.finishSpringAnimations(mSearchResultsView);
+            }
+        }
+        if (mSearchListMotion != null) {
+            mSearchListMotion.setTranslationY(0f);
+            mSearchListMotion.setVisibility(searching ? View.VISIBLE : View.INVISIBLE);
+            mSearchListMotion.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+        }
+        if (mAlphabetIndexer != null) mAlphabetIndexer.setAlpha(searching ? 1f : 0f);
         updateAlphabetIndexerVisibility();
     }
 
@@ -824,12 +959,9 @@ public class AppLibraryContainerView extends FrameLayout
         if (mSearchBar != null) {
             mSearchBar.resetSearch();
         }
+        cancelSearchTransition();
+        finishSearchTransition(false);
         if (mSearchResultsView != null) {
-            mSearchResultsView.animate().cancel();
-            mSearchResultsView.setVisibility(View.GONE);
-            mSearchResultsView.stopScroll();
-            SpringEdgeEffectFactory.finishSpringAnimations(mSearchResultsView);
-            mSearchResultsView.setAlpha(0f);
             if (mSearchAdapter.getItemCount() > 0) mSearchAdapter.setApps(List.of(), true);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 mSearchResultsView.setRenderEffect(null);
@@ -843,11 +975,8 @@ public class AppLibraryContainerView extends FrameLayout
             bindRecentApps();
         }
         if (mGridView != null) {
-            mGridView.animate().cancel();
-            mGridView.setVisibility(View.VISIBLE);
             mGridView.stopScroll();
             SpringEdgeEffectFactory.finishSpringAnimations(mGridView);
-            mGridView.setAlpha(1f);
             scrollCategoryGridToStart();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 mGridView.setRenderEffect(null);
@@ -858,6 +987,7 @@ public class AppLibraryContainerView extends FrameLayout
         }
         mPullToSearchEligible = false;
         mTouchInProgress = false;
+        mAlphabetTouchSequence = false;
     }
 
     public AppLibrarySearchBar getSearchBar() {

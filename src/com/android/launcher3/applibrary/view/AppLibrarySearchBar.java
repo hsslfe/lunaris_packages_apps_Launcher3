@@ -160,12 +160,15 @@ public class AppLibrarySearchBar extends LinearLayout {
 
     public void resetSearch() {
         if (mSearchInput != null) {
-            mSearchInput.setText("");
             mSearchInput.clearFocus();
             mSearchInput.setGravity(Gravity.CENTER);
         }
         hideKeyboard();
         setSearching(false);
+        // Keep the outgoing filtered rows intact until their exit animation completes.
+        if (mSearchInput != null) {
+            mSearchInput.setText("");
+        }
     }
 
     public void showKeyboard() {

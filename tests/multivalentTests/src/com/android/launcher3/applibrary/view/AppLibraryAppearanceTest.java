@@ -124,8 +124,34 @@ public class AppLibraryAppearanceTest {
             assertNotNull(library.getSearchResultsView().getBackground());
             library.onSearchStateChanged(false);
             assertEquals(View.VISIBLE, library.getGridView().getVisibility());
+            assertEquals(1f, library.getGridView().getAlpha(), 0f);
+            assertEquals(View.GONE, library.getSearchResultsView().getVisibility());
+            assertEquals(0f, library.getSearchResultsView().getAlpha(), 0f);
+            library.onSearchStateChanged(true);
+            library.reset();
+            assertEquals(View.VISIBLE, library.getGridView().getVisibility());
+            assertEquals(1f, library.getGridView().getScaleX(), 0f);
+            assertEquals(1f, library.getGridView().getScaleY(), 0f);
+            assertEquals(View.GONE, library.getSearchResultsView().getVisibility());
+            assertEquals(0f, library.findViewById(R.id.app_library_search_list_motion)
+                    .getTranslationY(), 0f);
         } finally {
             library.reset();
+        }
+    }
+
+    @Test
+    public void appListMotion_hasVisibleLiftAndBoundedSettle() {
+        assertEquals(64f, AppLibraryContainerView.searchListOffsetDp(0f), 0f);
+        assertTrue(AppLibraryContainerView.searchListOffsetDp(0.25f) > 30f);
+        assertEquals(-8f, AppLibraryContainerView.searchListOffsetDp(0.68f), 0.001f);
+        assertTrue(AppLibraryContainerView.searchListOffsetDp(0.85f) < 0f);
+        assertEquals(0f, AppLibraryContainerView.searchListOffsetDp(1f), 0.001f);
+        assertEquals(0f, AppLibraryContainerView.smoothSearchPhase(0.1f, 0.24f, 0.64f), 0f);
+        assertEquals(1f, AppLibraryContainerView.smoothSearchPhase(0.8f, 0.24f, 0.64f), 0f);
+        for (int i = 0; i <= 100; i++) {
+            float offset = AppLibraryContainerView.searchListOffsetDp(i / 100f);
+            assertTrue(offset >= -8.001f && offset <= 64.001f);
         }
     }
 
