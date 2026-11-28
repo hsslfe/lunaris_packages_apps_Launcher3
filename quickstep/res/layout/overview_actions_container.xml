@@ -30,9 +30,9 @@
         <LinearLayout
             android:id="@+id/clear_all_container"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="@dimen/recents_action_primary_row_height"
             android:layout_gravity="bottom|center_horizontal"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="@dimen/recents_action_row_bottom_margin"
             android:orientation="horizontal">
 
             <Space
@@ -61,9 +61,9 @@
         <LinearLayout
         	android:id="@+id/second_overview_actions_container"
             android:layout_width="match_parent"
-            android:layout_height="60dp"
+            android:layout_height="@dimen/recents_action_secondary_row_height"
             android:layout_gravity="bottom|center_horizontal"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="@dimen/recents_action_row_bottom_margin"
             android:orientation="horizontal">
 
             <Space

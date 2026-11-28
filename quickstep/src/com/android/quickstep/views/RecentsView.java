@@ -235,6 +235,7 @@ import com.android.quickstep.util.GroupTask;
 import com.android.quickstep.util.LayoutUtils;
 import com.android.quickstep.util.RecentsAtomicAnimationFactory;
 import com.android.quickstep.util.RecentsOrientedState;
+import com.android.quickstep.util.RecentsLayoutCustomization;
 import com.android.quickstep.util.SingleTask;
 import com.android.quickstep.util.SplitAnimationController.Companion.SplitAnimInitProps;
 import com.android.quickstep.util.SplitAnimationTimings;
@@ -554,6 +555,7 @@ public abstract class RecentsView<
     @Nullable
     protected RemoteTargetHandle[] mRemoteTargetHandles;
     protected final Rect mLastComputedTaskSize = new Rect();
+    private final Rect mDefaultTaskSize = new Rect();
     protected final Rect mLastComputedGridSize = new Rect();
     protected final Rect mLastComputedGridTaskSize = new Rect();
     // How much a task that is directly offscreen will be pushed out due to RecentsView scale/pivot.
@@ -2515,8 +2517,10 @@ public abstract class RecentsView<
     // Update task size and padding that are dependent on DeviceProfile and insets.
     private void updateSizeAndPadding() {
         DeviceProfile dp = mContainer.getDeviceProfile();
-        getTaskSize(mLastComputedTaskSize);
-        mActionsView.updateDimension(dp, mLastComputedTaskSize);
+        mContainerInterface.calculateTaskSize(mContainer, dp, mLastComputedTaskSize,
+                getPagedOrientationHandler(), mDefaultTaskSize);
+        mActionsView.updateDimension(dp, mDefaultTaskSize,
+                RecentsLayoutCustomization.isSupported(dp, getPagedOrientationHandler()));
         if (mMemInfoView != null) {
             mMemInfoView.setDp(dp);
         }

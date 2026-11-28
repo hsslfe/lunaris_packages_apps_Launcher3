@@ -562,6 +562,14 @@
 
     <string name="recents_overview_style_title">New overview style</string>
     <string name="recents_overview_style_summary">Use redesigned action buttons in recents</string>
+    <string name="recents_normal_layout_title">Normal overview layout</string>
+    <string name="recents_redesigned_layout_title">New overview layout</string>
+    <string name="recents_layout_card_size_title">Recents card size</string>
+    <string name="recents_layout_card_size_summary">Resize the card while keeping its aspect ratio. Limited to the space available above the buttons.</string>
+    <string name="recents_layout_card_top_margin_title">Recents card top margin</string>
+    <string name="recents_layout_card_top_margin_summary">Move only the card up or down. If there is no room, reduce the card size separately.</string>
+    <string name="recents_layout_button_top_margin_title">Recents buttons top margin</string>
+    <string name="recents_layout_button_top_margin_summary">Move the entire button group up or down without moving or resizing the card.</string>
 
     <string name="hotseat_qsb_height_title">QSB height</string>
     <string name="hotseat_qsb_height_summary">Use full QSB height instead of icon height</string>

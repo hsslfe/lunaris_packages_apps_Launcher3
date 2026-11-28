@@ -30,6 +30,11 @@
     <dimen name="taskbar_stashed_handle_height_small">3dp</dimen>
     <dimen name="taskbar_stashed_handle_height_tall">5dp</dimen>
 
+    <!-- Redesigned action group: both rows and their bottom margins. -->
+    <dimen name="recents_action_primary_row_height">48dp</dimen>
+    <dimen name="recents_action_secondary_row_height">60dp</dimen>
+    <dimen name="recents_action_row_bottom_margin">16dp</dimen>
+
     <!-- Overview style legacy values -->
     <dimen name="overview_actions_height_legacy">48dp</dimen>
     <dimen name="overview_actions_top_margin_legacy">24dp</dimen>

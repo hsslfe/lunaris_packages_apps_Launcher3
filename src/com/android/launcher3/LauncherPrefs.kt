@@ -364,6 +364,12 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
         @JvmField
         val RECENTS_TASK_CORNER_RADIUS = backedUpItem("pref_recents_task_corner_radius", 26)
         @JvmField val RECENTS_NEW_OVERVIEW_STYLE = backedUpItem("pref_recents_new_overview_style", true)
+        @JvmField val RECENTS_LEGACY_CARD_SIZE = backedUpItem("pref_recents_normal_card_size", 100)
+        @JvmField val RECENTS_LEGACY_CARD_TOP_MARGIN = backedUpItem("pref_recents_normal_card_top_margin", 0)
+        @JvmField val RECENTS_LEGACY_BUTTON_TOP_MARGIN = backedUpItem("pref_recents_normal_button_top_margin", 0)
+        @JvmField val RECENTS_REDESIGNED_CARD_SIZE = backedUpItem("pref_recents_redesigned_card_size", 100)
+        @JvmField val RECENTS_REDESIGNED_CARD_TOP_MARGIN = backedUpItem("pref_recents_redesigned_card_top_margin", 0)
+        @JvmField val RECENTS_REDESIGNED_BUTTON_TOP_MARGIN = backedUpItem("pref_recents_redesigned_button_top_margin", 0)
         @JvmField val RECENTS_SCREENSHOT = backedUpItem("pref_recents_screenshot", true)
         @JvmField val RECENTS_SCROLL_VIBRATE = backedUpItem("pref_recents_scroll_vibrate", true)
         @JvmField val ROW_HEIGHT = backedUpItem("pref_row_height", 100)

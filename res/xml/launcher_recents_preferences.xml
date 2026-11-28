@@ -119,6 +119,88 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        android:key="recents_category_normal_layout"
+        android:title="@string/recents_normal_layout_title">
+
+        <com.android.launcher3.settings.preferences.CustomSeekBarPreference
+            android:key="pref_recents_normal_card_size"
+            android:title="@string/recents_layout_card_size_title"
+            android:summary="@string/recents_layout_card_size_summary"
+            android:persistent="true"
+            android:min="75"
+            android:max="110"
+            android:defaultValue="100"
+            settings:units="%"
+            launcher:iconSpaceReserved="false" />
+
+        <com.android.launcher3.settings.preferences.CustomSeekBarPreference
+            android:key="pref_recents_normal_card_top_margin"
+            android:title="@string/recents_layout_card_top_margin_title"
+            android:summary="@string/recents_layout_card_top_margin_summary"
+            android:persistent="true"
+            android:min="-30"
+            android:max="40"
+            android:defaultValue="0"
+            settings:units="dp"
+            settings:showSign="true"
+            launcher:iconSpaceReserved="false" />
+
+        <com.android.launcher3.settings.preferences.CustomSeekBarPreference
+            android:key="pref_recents_normal_button_top_margin"
+            android:title="@string/recents_layout_button_top_margin_title"
+            android:summary="@string/recents_layout_button_top_margin_summary"
+            android:persistent="true"
+            android:min="-30"
+            android:max="40"
+            android:defaultValue="0"
+            settings:units="dp"
+            settings:showSign="true"
+            launcher:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="recents_category_redesigned_layout"
+        android:title="@string/recents_redesigned_layout_title">
+
+        <com.android.launcher3.settings.preferences.CustomSeekBarPreference
+            android:key="pref_recents_redesigned_card_size"
+            android:title="@string/recents_layout_card_size_title"
+            android:summary="@string/recents_layout_card_size_summary"
+            android:persistent="true"
+            android:min="75"
+            android:max="110"
+            android:defaultValue="100"
+            settings:units="%"
+            launcher:iconSpaceReserved="false" />
+
+        <com.android.launcher3.settings.preferences.CustomSeekBarPreference
+            android:key="pref_recents_redesigned_card_top_margin"
+            android:title="@string/recents_layout_card_top_margin_title"
+            android:summary="@string/recents_layout_card_top_margin_summary"
+            android:persistent="true"
+            android:min="-30"
+            android:max="40"
+            android:defaultValue="0"
+            settings:units="dp"
+            settings:showSign="true"
+            launcher:iconSpaceReserved="false" />
+
+        <com.android.launcher3.settings.preferences.CustomSeekBarPreference
+            android:key="pref_recents_redesigned_button_top_margin"
+            android:title="@string/recents_layout_button_top_margin_title"
+            android:summary="@string/recents_layout_button_top_margin_summary"
+            android:persistent="true"
+            android:min="-30"
+            android:max="40"
+            android:defaultValue="0"
+            settings:units="dp"
+            settings:showSign="true"
+            launcher:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:key="recents_category_actions"
         android:title="@string/actions_category_title">
 

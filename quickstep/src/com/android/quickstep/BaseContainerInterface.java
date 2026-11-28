@@ -66,6 +66,7 @@ import com.android.launcher3.views.ScrimView;
 import com.android.quickstep.orientation.RecentsPagedOrientationHandler;
 import com.android.quickstep.util.AnimatorControllerWithResistance;
 import com.android.quickstep.util.ContextInitListener;
+import com.android.quickstep.util.RecentsLayoutCustomization;
 import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.RecentsViewContainer;
 import com.android.systemui.shared.recents.model.ThumbnailData;
@@ -376,6 +377,26 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
     }
 
     public final void calculateTaskSize(Context context, DeviceProfile dp, Rect outRect,
+            RecentsPagedOrientationHandler orientationHandler) {
+        calculateTaskSize(context, dp, outRect, orientationHandler, null);
+    }
+
+    /**
+     * Resolve the stock and customized task bounds from the same layout pass.
+     * The action group must use the stock bounds, not the customized card.
+     */
+    public final void calculateTaskSize(Context context, DeviceProfile dp, Rect outRect,
+            RecentsPagedOrientationHandler orientationHandler, @Nullable Rect defaultTaskSize) {
+        calculateDefaultTaskSize(context, dp, outRect, orientationHandler);
+        if (defaultTaskSize != null) {
+            defaultTaskSize.set(outRect);
+        }
+        if (RecentsLayoutCustomization.isSupported(dp, orientationHandler)) {
+            RecentsLayoutCustomization.applyCard(context, dp, outRect);
+        }
+    }
+
+    private void calculateDefaultTaskSize(Context context, DeviceProfile dp, Rect outRect,
             RecentsPagedOrientationHandler orientationHandler) {
         if (dp.getDeviceProperties().isTablet()) {
             calculateLargeTileSize(context, dp, outRect);

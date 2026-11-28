@@ -62,6 +62,7 @@ import com.android.launcher3.util.NavigationMode;
 import com.android.launcher3.util.VibratorWrapper;
 import com.android.quickstep.TaskOverlayFactory.OverlayUICallbacks;
 import com.android.quickstep.util.LayoutUtils;
+import com.android.quickstep.util.RecentsLayoutCustomization;
 import com.android.wm.shell.shared.TypefaceUtils;
 import com.android.wm.shell.shared.TypefaceUtils.FontFamily;
 
@@ -205,6 +206,7 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
     @Nullable
     protected DeviceProfile mDp;
     private final Rect mTaskSize = new Rect();
+    private boolean mCustomizeButtonPosition;
     private boolean mIsGroupedTask = false;
     private boolean mCanSaveAppPair = false;
 
@@ -795,23 +797,27 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
             return modalTaskbarHeight + mDp.getOverviewProfile().getActionsTopMarginPx();
         }
 
-        if (!mIsNewStyle) {
-            return getResources().getDimensionPixelSize(R.dimen.overview_actions_bottom_margin_legacy);
+        int defaultBottom = RecentsLayoutCustomization.defaultButtonBottom(
+                getResources(), mDp, mTaskSize, mIsNewStyle);
+        if (!mCustomizeButtonPosition || mTaskSize.isEmpty()) {
+            return defaultBottom;
         }
-
-        // Align to bottom of task Rect.
-        return mDp.getDeviceProperties().getHeightPx()
-                - mTaskSize.bottom
-                - mDp.getOverviewProfile().getActionsTopMarginPx()
-                - mDp.getOverviewProfile().getActionsHeight();
+        return RecentsLayoutCustomization.buttonBottom(
+                getContext(), mDp, mTaskSize, mIsNewStyle);
     }
 
     /**
      * Updates device profile and task size for this view to draw with.
      */
     public void updateDimension(DeviceProfile dp, Rect taskSize) {
+        updateDimension(dp, taskSize, false);
+    }
+
+    /** The action anchor is always the original, uncustomized task rectangle. */
+    public void updateDimension(DeviceProfile dp, Rect taskSize, boolean customizeButtonPosition) {
         mDp = dp;
         mTaskSize.set(taskSize);
+        mCustomizeButtonPosition = customizeButtonPosition;
         updateVerticalMargin(DisplayController.getNavigationMode(getContext()));
         updateForIsTablet();
 

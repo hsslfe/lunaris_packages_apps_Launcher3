@@ -100,7 +100,13 @@ public class SettingsRecents extends ComposeSettingsActivity
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         if (LauncherPrefs.RECENTS_MEMINFO.getSharedPrefKey().equals(key)
-                || LauncherPrefs.RECENTS_NEW_OVERVIEW_STYLE.getSharedPrefKey().equals(key)) {
+                || LauncherPrefs.RECENTS_NEW_OVERVIEW_STYLE.getSharedPrefKey().equals(key)
+                || LauncherPrefs.RECENTS_LEGACY_CARD_SIZE.getSharedPrefKey().equals(key)
+                || LauncherPrefs.RECENTS_LEGACY_CARD_TOP_MARGIN.getSharedPrefKey().equals(key)
+                || LauncherPrefs.RECENTS_LEGACY_BUTTON_TOP_MARGIN.getSharedPrefKey().equals(key)
+                || LauncherPrefs.RECENTS_REDESIGNED_CARD_SIZE.getSharedPrefKey().equals(key)
+                || LauncherPrefs.RECENTS_REDESIGNED_CARD_TOP_MARGIN.getSharedPrefKey().equals(key)
+                || LauncherPrefs.RECENTS_REDESIGNED_BUTTON_TOP_MARGIN.getSharedPrefKey().equals(key)) {
             LauncherAppState.INSTANCE.executeIfCreated(app -> app.setNeedsRestart());
         }
     }
@@ -154,7 +160,9 @@ public class SettingsRecents extends ComposeSettingsActivity
             }
 
             DisplayController.Info info = DisplayController.INSTANCE.get(getContext()).getInfo();
-            if (key.equals(RECENTS_CATEGORY_ACTION) || key.equals(RECENTS_STYLE_PREF)) {
+            if (key.equals(RECENTS_CATEGORY_ACTION) || key.equals(RECENTS_STYLE_PREF)
+                    || key.equals("recents_category_normal_layout")
+                    || key.equals("recents_category_redesigned_layout")) {
                 return !info.isTablet(info.realBounds);
             }
 
