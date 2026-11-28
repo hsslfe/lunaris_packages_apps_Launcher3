@@ -57,6 +57,8 @@ public class SettingsRecents extends ComposeSettingsActivity
     public static final String SAVE_HIGHLIGHTED_KEY = "android:preference_highlighted";
 
     private static final String RECENTS_CATEGORY_ACTION = "recents_category_actions";
+    private static final String RECENTS_CATEGORY_NORMAL_LAYOUT = "recents_category_normal_layout";
+    private static final String RECENTS_CATEGORY_REDESIGNED_LAYOUT = "recents_category_redesigned_layout";
     private static final String RECENTS_STYLE_PREF = "pref_recents_style";
     private static final String RECENTS_SCROLL_VIBRATE_PREF = "pref_recents_scroll_vibrate";
 
@@ -115,7 +117,7 @@ public class SettingsRecents extends ComposeSettingsActivity
      * This fragment shows the launcher preferences.
      */
     public static class RecentsSettingsFragment extends ComposePreferenceFragment implements
-            SettingsCache.OnChangeListener {
+            SettingsCache.OnChangeListener, SharedPreferences.OnSharedPreferenceChangeListener {
 
         private boolean mRestartOnResume = false;
 
@@ -132,6 +134,7 @@ public class SettingsRecents extends ComposeSettingsActivity
 
             PreferenceScreen screen = getPreferenceScreen();
             removeUnsupportedPreferences(screen);
+            updateOverviewLayoutVisibility();
 
             if (getActivity() != null && !TextUtils.isEmpty(getPreferenceScreen().getTitle())) {
                 getActivity().setTitle(getPreferenceScreen().getTitle());
@@ -161,8 +164,8 @@ public class SettingsRecents extends ComposeSettingsActivity
 
             DisplayController.Info info = DisplayController.INSTANCE.get(getContext()).getInfo();
             if (key.equals(RECENTS_CATEGORY_ACTION) || key.equals(RECENTS_STYLE_PREF)
-                    || key.equals("recents_category_normal_layout")
-                    || key.equals("recents_category_redesigned_layout")) {
+                    || key.equals(RECENTS_CATEGORY_NORMAL_LAYOUT)
+                    || key.equals(RECENTS_CATEGORY_REDESIGNED_LAYOUT)) {
                 return !info.isTablet(info.realBounds);
             }
 
@@ -172,6 +175,44 @@ public class SettingsRecents extends ComposeSettingsActivity
             }
 
             return true;
+        }
+
+        private void updateOverviewLayoutVisibility() {
+            SharedPreferences prefs = getPreferenceManager().getSharedPreferences();
+            boolean newStyle = prefs.getBoolean(
+                    LauncherPrefs.RECENTS_NEW_OVERVIEW_STYLE.getSharedPrefKey(), true);
+            Preference normal = findPreference(RECENTS_CATEGORY_NORMAL_LAYOUT);
+            Preference redesigned = findPreference(RECENTS_CATEGORY_REDESIGNED_LAYOUT);
+            // Keep both groups attached so switching styles never resets their values.
+            if (normal != null) {
+                normal.setVisible(!newStyle);
+            }
+            if (redesigned != null) {
+                redesigned.setVisible(newStyle);
+            }
+        }
+
+        @Override
+        public void onStart() {
+            super.onStart();
+            getPreferenceManager().getSharedPreferences()
+                    .registerOnSharedPreferenceChangeListener(this);
+            updateOverviewLayoutVisibility();
+        }
+
+        @Override
+        public void onStop() {
+            getPreferenceManager().getSharedPreferences()
+                    .unregisterOnSharedPreferenceChangeListener(this);
+            super.onStop();
+        }
+
+        @Override
+        public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
+            if (LauncherPrefs.RECENTS_NEW_OVERVIEW_STYLE.getSharedPrefKey().equals(key)
+                    || key == null) {
+                updateOverviewLayoutVisibility();
+            }
         }
 
         @Override
