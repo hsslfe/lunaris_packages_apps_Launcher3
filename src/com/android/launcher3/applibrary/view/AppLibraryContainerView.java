@@ -31,6 +31,7 @@ import com.android.launcher3.Insettable;
 import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherPrefChangeListener;
 import com.android.launcher3.LauncherPrefs;
+import com.android.launcher3.LauncherState;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.applibrary.model.AppCategoryGroup;
@@ -597,7 +598,8 @@ public class AppLibraryContainerView extends FrameLayout
         super.onAttachedToWindow();
         ThemeManager.INSTANCE.get(getContext()).addChangeListener(this);
         LauncherPrefs.get(getContext()).addListener(this, LauncherPrefs.APP_LIBRARY_SHOW_LABELS,
-                LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION, LauncherPrefs.APP_LIBRARY_ENABLED);
+                LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION, LauncherPrefs.APP_LIBRARY_ENABLED,
+                LauncherPrefs.APP_LIBRARY_BACKGROUND_DIM);
         if (mModel != null) mModel.setEnabled(LauncherPrefs.APP_LIBRARY_ENABLED.get(getContext()));
         resumeRecentAppsIfVisible();
         onThemeChanged();
@@ -615,13 +617,24 @@ public class AppLibraryContainerView extends FrameLayout
         LauncherPrefs.get(getContext()).removeListener(this,
                 LauncherPrefs.APP_LIBRARY_SHOW_LABELS,
                 LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION,
-                LauncherPrefs.APP_LIBRARY_ENABLED);
+                LauncherPrefs.APP_LIBRARY_ENABLED,
+                LauncherPrefs.APP_LIBRARY_BACKGROUND_DIM);
         mTouchInProgress = false;
         super.onDetachedFromWindow();
     }
 
     @Override
     public void onPrefChanged(String key) {
+        if (LauncherPrefs.APP_LIBRARY_BACKGROUND_DIM.getSharedPrefKey().equals(key)) {
+            // Do not replace the scrim while a state transition owns its animation.
+            if (mActivityContext instanceof Launcher launcher
+                    && launcher.getStateManager().isInStableState(LauncherState.APP_LIBRARY)
+                    && !launcher.getStateManager().isInTransition()) {
+                launcher.getScrimView().setScrimColors(
+                        LauncherState.APP_LIBRARY.getWorkspaceScrimColor(launcher));
+            }
+            return;
+        }
         if (LauncherPrefs.APP_LIBRARY_ENABLED.getSharedPrefKey().equals(key)) {
             boolean enabled = LauncherPrefs.APP_LIBRARY_ENABLED.get(getContext());
             if (mModel != null) mModel.setEnabled(enabled);

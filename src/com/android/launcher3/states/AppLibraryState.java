@@ -8,6 +8,7 @@ import android.content.Context;
 import android.graphics.Color;
 
 import com.android.launcher3.Launcher;
+import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.LauncherUiState;
 import com.android.launcher3.R;
@@ -98,7 +99,9 @@ public class AppLibraryState extends LauncherState {
 
     @Override
     public ScrimColors getWorkspaceScrimColor(Launcher launcher) {
-        return new ScrimColors(Color.argb(179, 0, 0, 0), Color.TRANSPARENT);
+        int dim = Math.max(0, Math.min(100, LauncherPrefs.APP_LIBRARY_BACKGROUND_DIM.get(launcher)));
+        return new ScrimColors(Color.argb(Math.round(dim * 255f / 100f), 0, 0, 0),
+                Color.TRANSPARENT);
     }
 
     @Override

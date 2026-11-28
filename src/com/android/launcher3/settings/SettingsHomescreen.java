@@ -278,7 +278,8 @@ public class SettingsHomescreen extends ComposeSettingsActivity
             String[] keys = {
                 LauncherPrefs.APP_LIBRARY_SHOW_LABELS.getSharedPrefKey(),
                 LauncherPrefs.APP_LIBRARY_SINGLE_PAGE.getSharedPrefKey(),
-                LauncherPrefs.APP_LIBRARY_HIDE_APP_DRAWER.getSharedPrefKey()
+                LauncherPrefs.APP_LIBRARY_HIDE_APP_DRAWER.getSharedPrefKey(),
+                LauncherPrefs.APP_LIBRARY_BACKGROUND_DIM.getSharedPrefKey()
             };
             for (String key : keys) {
                 Preference option = screen.findPreference(key);

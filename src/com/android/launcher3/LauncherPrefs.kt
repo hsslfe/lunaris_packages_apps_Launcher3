@@ -505,6 +505,7 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
 
         @JvmField val APP_LIBRARY_ENABLED = backedUpItem("pref_app_library_enabled", false)
         @JvmField val APP_LIBRARY_SHOW_LABELS = backedUpItem("pref_app_library_show_labels", true)
+        @JvmField val APP_LIBRARY_BACKGROUND_DIM = backedUpItem("pref_app_library_background_dim", 70)
         @JvmField val APP_LIBRARY_SINGLE_PAGE = backedUpItem("pref_app_library_single_page", false)
         @JvmField val APP_LIBRARY_HIDE_APP_DRAWER =
             backedUpItem("pref_app_library_hide_app_drawer", true)        

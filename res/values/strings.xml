@@ -603,6 +603,8 @@
     <string name="app_library_search_clear">Clear search</string>
     <string name="pref_app_library_title">App Library</string>
     <string name="pref_app_library_summary">Show an iOS-style categorized application library</string>
+    <string name="pref_app_library_background_dim_title">Background dimness</string>
+    <string name="pref_app_library_background_dim_summary">Adjust the darkness behind App Library independently of wallpaper blur</string>
     <string name="pref_app_library_show_labels_title">Show app labels</string>
     <string name="pref_app_library_show_labels_summary">Show names below icons in App Library cards and categories</string>
     <string name="app_library_recent_apps">Recently used apps</string>

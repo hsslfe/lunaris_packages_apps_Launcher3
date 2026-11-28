@@ -550,6 +550,17 @@
             android:defaultValue="false"
             android:persistent="true" />
 
+        <com.android.launcher3.settings.preferences.CustomSeekBarPreference
+            android:key="pref_app_library_background_dim"
+            android:title="@string/pref_app_library_background_dim_title"
+            android:summary="@string/pref_app_library_background_dim_summary"
+            android:defaultValue="70"
+            android:min="0"
+            android:max="100"
+            android:dependency="pref_app_library_enabled"
+            android:persistent="true"
+            settings:units="%" />
+
         <SwitchPreferenceCompat
             android:key="pref_app_library_show_labels"
             android:title="@string/pref_app_library_show_labels_title"

@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 
+import androidx.preference.Preference;
 import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceManager;
 import androidx.preference.PreferenceScreen;
@@ -45,11 +46,16 @@ public class AppLibraryPreferenceVisibilityTest {
             option.setChecked(true);
             category.addPreference(option);
         }
+        Preference dim = new Preference(context);
+        dim.setKey(LauncherPrefs.APP_LIBRARY_BACKGROUND_DIM.getSharedPrefKey());
+        category.addPreference(dim);
         SettingsHomescreen.HomescreenSettingsFragment.setAppLibraryOptionsVisible(screen, false);
+        assertFalse(dim.isVisible());
         assertTrue(master.isVisible());
         assertTrue(category.isVisible());
         for (String key : keys) assertFalse(screen.findPreference(key).isVisible());
         SettingsHomescreen.HomescreenSettingsFragment.setAppLibraryOptionsVisible(screen, true);
+        assertTrue(dim.isVisible());
         for (String key : keys) {
             SwitchPreferenceCompat option = screen.findPreference(key);
             assertTrue(option.isVisible());
