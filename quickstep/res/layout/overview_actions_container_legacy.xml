@@ -22,6 +22,10 @@
             android:layout_marginHorizontal="6dp"
             android:drawableStart="@drawable/ic_screenshot"
             android:text="@string/recents_screenshot_title"
+            android:background="@drawable/bg_overview_actions_button"
+            android:backgroundTint="@null"
+            android:textColor="@color/overview_action_accent"
+            android:drawableTint="@color/overview_action_accent"
             android:visibility="gone" />
 
         <Button
@@ -30,6 +34,10 @@
             android:layout_height="wrap_content"
             android:layout_marginHorizontal="6dp"
             android:text="@string/action_split"
+            android:background="@drawable/bg_overview_actions_button"
+            android:backgroundTint="@null"
+            android:textColor="@color/overview_action_accent"
+            android:drawableTint="@color/overview_action_accent"
             android:visibility="gone" />
 
         <Button
@@ -39,6 +47,10 @@
             android:layout_marginHorizontal="6dp"
             android:drawableStart="@drawable/ic_lens"
             android:text="@string/recents_lens_title"
+            android:background="@drawable/bg_overview_actions_button"
+            android:backgroundTint="@null"
+            android:textColor="@color/overview_action_accent"
+            android:drawableTint="@color/overview_action_accent"
             android:visibility="gone" />
 
         <Button
@@ -48,6 +60,10 @@
             android:layout_marginHorizontal="6dp"
             android:drawableStart="@drawable/ic_clear_all"
             android:text="@string/recents_clear_all_title"
+            android:background="@drawable/bg_overview_actions_button"
+            android:backgroundTint="@null"
+            android:textColor="@color/overview_action_accent"
+            android:drawableTint="@color/overview_action_accent"
             android:visibility="gone" />
 
     </LinearLayout>
@@ -58,6 +74,10 @@
         android:layout_height="wrap_content"
         android:text="@string/action_save_app_pair"
         android:layout_gravity="bottom|center_horizontal"
+        android:background="@drawable/bg_overview_actions_button"
+        android:backgroundTint="@null"
+        android:textColor="@color/overview_action_accent"
+        android:drawableTint="@color/overview_action_accent"
         android:visibility="gone" />
 
     <!-- Lock pill indicator shown during swipe-down-to-lock gesture -->
