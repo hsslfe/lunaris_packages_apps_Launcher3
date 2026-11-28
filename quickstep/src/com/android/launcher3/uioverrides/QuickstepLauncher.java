@@ -407,9 +407,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         ViewStub actionsStub = findViewById(R.id.overview_actions_view_stub);
         if (actionsStub != null) {
             actionsStub.setLayoutResource(
-                    LauncherPrefs.RECENTS_NEW_OVERVIEW_STYLE.get(this)
-                            ? R.layout.overview_actions_container
-                            : R.layout.overview_actions_container_legacy);
+                    com.android.quickstep.util.AxionOverview.getActionsLayout(this, getDeviceProfile()));
             actionsStub.inflate();
         }
         mActionsView = findViewById(R.id.overview_actions_view);

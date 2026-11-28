@@ -179,6 +179,10 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
     /** Container for the action buttons below a focused, non-split Overview tile. */
     protected LinearLayout mActionButtons;
     private boolean mIsNewStyle;
+    private boolean mIsAxionStyle;
+    private ImageButton mAxionLockButton;
+    private ImageButton mAxionFreeformButton;
+    private TaskView mAxionTask;
     private ImageButton mSplitButton;
     /**
      * The "save app pair" button. Currently this is the only button that is not contained in
@@ -274,12 +278,19 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
         if ((v = findViewById(R.id.action_split)) != null) v.setOnClickListener(null);
         if ((v = findViewById(R.id.action_save_app_pair)) != null) v.setOnClickListener(null);
         if ((v = findViewById(R.id.action_lens)) != null) v.setOnClickListener(null);
+        if (mAxionLockButton != null) mAxionLockButton.setOnClickListener(null);
+        if (mAxionFreeformButton != null) mAxionFreeformButton.setOnClickListener(null);
+        mAxionTask = null;
     }
 
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
 
+        mAxionLockButton = findViewById(R.id.action_lock);
+        mAxionFreeformButton = findViewById(R.id.action_freeform);
+        mIsAxionStyle = mAxionLockButton != null;
+        if (mIsAxionStyle) mIsNewStyle = true;
         mClearAllButton = findViewById(R.id.action_clear_all);
         mClearAllButton.setOnClickListener(this);
         mClearAllButton.setOnLongClickListener(v -> {
@@ -399,12 +410,65 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
 
         View lensButton = findViewById(R.id.action_lens);
         View lensButtonSpace = mIsNewStyle ? findViewById(R.id.action_lens_space) : null;
-        lensButton.setOnClickListener(this);
-        lensButton.setVisibility(mLens && Utilities.isGSAEnabled(getContext()) ? VISIBLE : GONE);
+        if (lensButton != null) {
+            lensButton.setOnClickListener(this);
+            lensButton.setVisibility(mLens && Utilities.isGSAEnabled(getContext()) ? VISIBLE : GONE);
+        }
+        if (mIsAxionStyle) {
+            mAxionLockButton.setOnClickListener(this);
+            mAxionFreeformButton.setOnClickListener(this);
+            updateAxionTask(mAxionTask);
+        }
         if (lensButtonSpace != null) lensButtonSpace.setVisibility(mLens && Utilities.isGSAEnabled(getContext()) ? VISIBLE : GONE);
 
         if (mIsNewStyle) {
             updateSecondActionsRowVisibility();
+        }
+    }
+
+    public void updateAxionTask(@Nullable TaskView task) {
+        if (!mIsAxionStyle) return;
+        mAxionTask = task != null && !(task instanceof GroupedTaskView)
+                && !(task instanceof DesktopTaskView) && task.getFirstTask() != null ? task : null;
+        boolean available = mAxionTask != null;
+        mAxionLockButton.setVisibility(available ? VISIBLE : GONE);
+        mAxionFreeformButton.setVisibility(available && mAxionTask.getFirstTask().isDockable
+                ? VISIBLE : GONE);
+        if (available) {
+            mAxionTask.updateLockState(mAxionTask.getFirstTask().key.getPackageName());
+            mAxionLockButton.setImageResource(mAxionTask.isLocked()
+                    ? R.drawable.ic_app_locked : R.drawable.ic_app_unlocked);
+            mAxionLockButton.setContentDescription(getContext().getString(mAxionTask.isLocked()
+                    ? R.string.recents_axion_unlock : R.string.recents_axion_lock));
+        }
+    }
+
+    private void onAxionTaskAction(View view, boolean lock) {
+        TaskView task = mAxionTask;
+        if (task == null || task.getRecentsView() == null
+                || task.getRecentsView().getCurrentPageTaskView() != task
+                || task.getFirstTaskContainer() == null) return;
+        RecentsView rv = task.getRecentsView();
+        if (lock) {
+            String pkg = task.getFirstTask().key.getPackageName();
+            if (pkg == null) return;
+            com.android.quickstep.LockedTaskManager manager =
+                    com.android.quickstep.LockedTaskManager.getInstance(getContext());
+            manager.setPackageLocked(pkg, !manager.isPackageLocked(pkg));
+            for (Object item : rv.getTaskViews()) {
+                TaskView candidate = (TaskView) item;
+                if (candidate.getFirstTask() != null
+                        && pkg.equals(candidate.getFirstTask().key.getPackageName())) {
+                    candidate.updateLockState(pkg);
+                }
+            }
+            updateAxionTask(task);
+        } else {
+            java.util.List<com.android.launcher3.popup.SystemShortcut> shortcuts =
+                    com.android.quickstep.TaskShortcutFactory.FLOATING.getShortcuts(
+                            RecentsViewContainer.containerFromContext(task.getContext()),
+                            task.getFirstTaskContainer());
+            if (shortcuts != null && !shortcuts.isEmpty()) shortcuts.get(0).onClick(view);
         }
     }
 
@@ -564,6 +628,10 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
     @Override
     public void onClick(View view) {
         final int id = view.getId();
+        if (mIsAxionStyle && (id == R.id.action_lock || id == R.id.action_freeform)) {
+            onAxionTaskAction(view, id == R.id.action_lock);
+            return;
+        }
         if (id == R.id.action_clear_all) {
             animateClearAllPress(view);
             return;
@@ -780,9 +848,21 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
 
         LayoutParams actionParams = (LayoutParams) actionBar.getLayoutParams();
         actionParams.setMargins(
-                actionParams.leftMargin, mDp.getOverviewProfile().getActionsTopMarginPx(),
-                actionParams.rightMargin, getBottomMargin());
+                actionParams.leftMargin, mIsAxionStyle
+                        ? getResources().getDimensionPixelSize(R.dimen.axion_overview_actions_top_margin)
+                        : mDp.getOverviewProfile().getActionsTopMarginPx(),
+                actionParams.rightMargin, mIsAxionStyle
+                        ? getAxionBottomMargin(actionParams.height) : getBottomMargin());
         actionBar.setLayoutParams(actionParams);
+    }
+
+    private int getAxionBottomMargin(int actionHeight) {
+        int height = actionHeight > 0 ? actionHeight
+                : getResources().getDimensionPixelSize(R.dimen.axion_overview_actions_btn_size);
+        return Math.max(mDp.getOverviewActionsClaimedSpaceBelow() + mDp.memInfoHeight,
+                mDp.getDeviceProperties().getHeightPx() - mTaskSize.bottom
+                        - getResources().getDimensionPixelSize(R.dimen.axion_overview_actions_top_margin)
+                        - height);
     }
 
     private int getBottomMargin() {

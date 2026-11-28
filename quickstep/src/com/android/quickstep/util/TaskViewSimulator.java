@@ -104,6 +104,7 @@ public class TaskViewSimulator implements TransformParams.BuilderProxy {
     public final AnimatedFloat taskGridTranslationX = new AnimatedFloat();
     public final AnimatedFloat taskGridTranslationY = new AnimatedFloat();
 
+    private final AxTaskViewSimulatorExt mAxExt;
     private float mRecentsStyleScale = 1f;
     private float mRecentsStyleTranslation;
 
@@ -143,6 +144,7 @@ public class TaskViewSimulator implements TransformParams.BuilderProxy {
         mContext = context;
         mSizeStrategy = sizeStrategy;
         mIsDesktopTask = isDesktop;
+        mAxExt = new AxTaskViewSimulatorExt(context, isDesktop);
         mDesktopTaskIndex = desktopTaskIndex;
 
         mOrientationState = TraceHelper.allowIpcs("TaskViewSimulator.init",
@@ -280,6 +282,9 @@ public class TaskViewSimulator implements TransformParams.BuilderProxy {
      * Sets the targets which the simulator will control
      */
     public void setPreviewBounds(Rect bounds, Rect insets) {
+        mAxExt.setStackTransform(1f, 0f, 0f, 1f);
+        mAxExt.setStackTransformPinned(false);
+        mAxExt.setLaunchAlpha(1f);
         mThumbnailData.insets.set(insets);
         // TODO: What is this?
         mThumbnailData.windowingMode = WINDOWING_MODE_FULLSCREEN;
@@ -499,6 +504,7 @@ public class TaskViewSimulator implements TransformParams.BuilderProxy {
             }
         }
 
+        mAxExt.applyStackScale(mMatrix, mTaskRect, fullScreenProgress);
         mMatrix.postScale(mRecentsStyleScale, mRecentsStyleScale,
                 mFullTaskSize.exactCenterX(), mFullTaskSize.exactCenterY());
         mOrientationState.getOrientationHandler().setPrimary(mMatrix, MATRIX_POST_TRANSLATE,
@@ -506,6 +512,7 @@ public class TaskViewSimulator implements TransformParams.BuilderProxy {
         mOrientationState.getOrientationHandler().setSecondary(mMatrix, MATRIX_POST_TRANSLATE,
                 taskSecondaryTranslation.value);
         mMatrix.postTranslate(taskGridTranslationX.value, taskGridTranslationY.value);
+        mAxExt.applyStackTranslation(mMatrix, fullScreenProgress);
 
         mMatrix.postScale(carouselScale.value, carouselScale.value,
                 mIsRecentsRtl ? mCarouselTaskSize.right : mCarouselTaskSize.left,
@@ -562,6 +569,8 @@ public class TaskViewSimulator implements TransformParams.BuilderProxy {
         builder.setMatrix(mMatrix)
                 .setWindowCrop(mTmpCropRect)
                 .setCornerRadius(getCurrentCornerRadius());
+        float stackAlpha = mAxExt.getAlpha(fullScreenProgress.value);
+        if (stackAlpha != 1f) builder.setAlpha(params.getTargetAlpha() * stackAlpha);
 
         if (mDrawsBelowRecents == null && mDrawAboveOtherApps == null) {
             // No reordering will be enforced.
@@ -607,10 +616,22 @@ public class TaskViewSimulator implements TransformParams.BuilderProxy {
         }
 
         // Ideally we should use square-root. This is an optimization as one of the dimension is 0.
-        return Math.max(Math.abs(mTempPoint[0]), Math.abs(mTempPoint[1]));
+        return mAxExt.getRadius(Math.max(Math.abs(mTempPoint[0]), Math.abs(mTempPoint[1])),
+                fullScreenProgress.value, recentsViewScale.value, carouselScale.value);
     }
 
     public float getScaledCornerRadius() {
         return mMatrix.mapRadius(getCurrentCornerRadius());
+    }
+    public void setAxStackTransform(float scale, float x, float y, float alpha) {
+        mAxExt.setStackTransform(scale, x, y, alpha);
+    }
+
+    public void setAxStackTransformPinned(boolean pinned) {
+        mAxExt.setStackTransformPinned(pinned);
+    }
+
+    public void setAxLaunchAlpha(float alpha) {
+        mAxExt.setLaunchAlpha(alpha);
     }
 }

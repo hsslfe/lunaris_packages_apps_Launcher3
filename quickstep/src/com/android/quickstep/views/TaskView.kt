@@ -126,6 +126,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /** A task in the Recents view. */
 open class TaskView
@@ -438,6 +439,10 @@ constructor(
             applyScale()
         }
 
+    private val axStackTransform = AxTaskViewTransform()
+    private val axStackElevationScale = 16f * resources.displayMetrics.density
+    private var axStackHidden = false
+
     private var dismissTranslationX = 0f
         set(value) {
             field = value
@@ -529,6 +534,9 @@ constructor(
     var attachAlpha by MultiPropertyDelegate(taskViewAlpha, Alpha.Attach)
     var splitAlpha by MultiPropertyDelegate(taskViewAlpha, Alpha.Split)
     private var modalAlpha by MultiPropertyDelegate(taskViewAlpha, Alpha.Modal)
+    private var appliedAxStackAlpha by MultiPropertyDelegate(taskViewAlpha, Alpha.AxStack)
+    private var axLaunchAlpha by MultiPropertyDelegate(taskViewAlpha, Alpha.AxLaunch)
+    private var dismissAlpha by MultiPropertyDelegate(taskViewAlpha, Alpha.Dismiss)
 
     protected var shouldShowScreenshot = false
         get() = !isRunningTask || field
@@ -840,7 +848,19 @@ constructor(
     }
 
     // TODO: Clip-out the icon region from the thumbnail, since they are overlapping.
-    override fun hasOverlappingRendering() = false
+    override fun hasOverlappingRendering() =
+        recentsView?.isAxionOverviewEnabled() == true && alpha < 1f && !isRunningTask
+
+    private var recordedOverlappingRendering = false
+
+    override fun setAlpha(alpha: Float) {
+        super.setAlpha(alpha)
+        val overlapping = hasOverlappingRendering()
+        if (overlapping != recordedOverlappingRendering) {
+            recordedOverlappingRendering = overlapping
+            invalidate()
+        }
+    }
 
     override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
         super.onInitializeAccessibilityNodeInfo(info)
@@ -1467,6 +1487,8 @@ constructor(
     }
 
     protected fun setIcon(iconView: TaskViewIcon, icon: Drawable?) {
+        setAxStackIconAlpha(iconView, axStackTransform.getIconAlpha())
+        iconView.setDismissAlpha(dismissAlpha)
         with(iconView) {
             if (icon != null) {
                 setDrawable(icon)
@@ -1511,6 +1533,13 @@ constructor(
         }
     }
 
+    private fun setAxStackIconAlpha(iconView: TaskViewIcon, alpha: Float) {
+        iconView.setAxStackAlpha(alpha)
+        if (!enableOverviewIconMenu() && fullscreenProgress >= 1f) {
+            iconView.asView().visibility = INVISIBLE
+        }
+    }
+
     @JvmOverloads
     open fun setShouldShowScreenshot(
         shouldShowScreenshot: Boolean,
@@ -1545,6 +1574,7 @@ constructor(
 
     /** Launch of the current task (both live and inactive tasks) with an animation. */
     fun launchWithAnimation(): RunnableList? {
+        recentsView?.prepareTaskForLaunch(this)
         return if (isRunningTask && recentsView?.remoteTargetHandles != null) {
                 launchAsLiveTile(recentsView?.remoteTargetHandles!!)
             } else {
@@ -1827,6 +1857,9 @@ constructor(
 
     private fun showTaskMenu(iconView: TaskViewIcon): Boolean {
         val recentsView = recentsView ?: return false
+        if (recentsView.snapToTaskIfNeeded(this)) {
+            return true
+        }
         if (!recentsView.canLaunchFullscreenTask()) {
             // Don't show menu when selecting second split screen app
             return true
@@ -2108,7 +2141,8 @@ constructor(
     private fun applyScale() {
         val scale =
             persistentScale * dismissScale * recentsScale *
-                Utilities.mapRange(modalness, 1f, modalScale)
+                Utilities.mapRange(modalness, 1f, modalScale) *
+                axStackTransform.getAppliedScale(fullscreenProgress)
         scaleX = scale
         scaleY = scale
         updateFullscreenParams()
@@ -2122,7 +2156,8 @@ constructor(
                 taskResistanceTranslationX +
                 splitSelectTranslationX +
                 gridEndTranslationX +
-                persistentTranslationX
+                persistentTranslationX +
+                getAppliedAxStackTranslationX()
     }
 
     private fun applyTranslationY() {
@@ -2132,7 +2167,136 @@ constructor(
                 taskOffsetTranslationY +
                 taskResistanceTranslationY +
                 splitSelectTranslationY +
-                persistentTranslationY
+                persistentTranslationY +
+                getAppliedAxStackTranslationY()
+    }
+
+    fun setAxStackTransform(
+        scale: Float,
+        translationX: Float,
+        translationY: Float,
+        depth: Float,
+        alpha: Float,
+        iconAlpha: Float,
+    ): Boolean {
+        val changes =
+            axStackTransform.set(scale, translationX, translationY, depth, alpha, iconAlpha)
+        if (changes == 0) {
+            return false
+        }
+        if (changes and AxTaskViewTransform.SCALE_CHANGED != 0) {
+            applyScale()
+        }
+        if (changes and AxTaskViewTransform.TRANSLATION_X_CHANGED != 0) {
+            applyTranslationX()
+        }
+        if (changes and AxTaskViewTransform.TRANSLATION_Y_CHANGED != 0) {
+            applyTranslationY()
+        }
+        if (changes and AxTaskViewTransform.DEPTH_CHANGED != 0) {
+            applyAxStackDepth()
+        }
+        if (changes and AxTaskViewTransform.ALPHA_CHANGED != 0) {
+            applyAxStackAlpha()
+        }
+        if (changes and AxTaskViewTransform.ICON_ALPHA_CHANGED != 0) {
+            val iconAlpha = axStackTransform.getIconAlpha()
+            taskContainers.forEach {
+                setAxStackIconAlpha(it.iconView, iconAlpha)
+            }
+        }
+        return changes and AxTaskViewTransform.SURFACE_CHANGED != 0
+    }
+
+    fun resetAxStackTransform(): Boolean {
+        val pinChanged = axStackTransform.setPinnedDuringFullscreen(false)
+        return setAxStackTransform(1f, 0f, 0f, 0f, 1f, 1f) || pinChanged
+    }
+
+    fun setAxStackTransformPinned(pinned: Boolean) {
+        if (!axStackTransform.setPinnedDuringFullscreen(pinned) || !hasAxStackTransform()) {
+            return
+        }
+        applyTranslationX()
+        applyTranslationY()
+        applyAxStackDepth()
+        applyAxStackAlpha()
+        applyScale()
+    }
+
+    fun getAxStackScale(): Float = axStackTransform.getScale()
+
+    private var axStackIconElevation = 0f
+
+    fun setAxStackIconElevation(elevation: Float) {
+        if (kotlin.math.abs(axStackIconElevation - elevation) <= 0.5f) {
+            return
+        }
+        axStackIconElevation = elevation
+        taskContainers.forEach {
+            it.iconView.asView().elevation = elevation
+        }
+    }
+
+    fun getAxStackIconElevation(): Float = axStackIconElevation
+
+    fun getAxStackTranslationX(): Float = axStackTransform.getTranslationX()
+
+    fun getAxStackTranslationY(): Float = axStackTransform.getTranslationY()
+
+    fun getAxStackAlpha(): Float = axStackTransform.getAlpha()
+
+    fun getAxLaunchAlphaValue(): Float = axLaunchAlpha
+
+    fun setAxLaunchAlphaValue(alpha: Float) {
+        axLaunchAlpha = alpha
+    }
+
+    fun isAxStackIconVisible(): Boolean = axStackTransform.getIconAlpha() > 0f
+
+    fun getAxStackIconAlpha(): Float = axStackTransform.getIconAlpha()
+
+    fun updateDismissAlpha(displacement: Float, dismissLength: Float) {
+        val recentsView = recentsView ?: return
+        val orientationHandler = recentsView.pagedOrientationHandler
+        val alpha = calculateDismissAlpha(
+            displacement,
+            dismissLength,
+            orientationHandler.isGoingUp(displacement, isLayoutRtl),
+        )
+        dismissAlpha = alpha
+        taskContainers.forEach { it.iconView.setDismissAlpha(alpha) }
+    }
+
+    fun getAppliedAxStackTranslationX(): Float =
+        axStackTransform.getAppliedTranslationX(fullscreenProgress)
+
+    fun getAppliedAxStackTranslationY(): Float =
+        axStackTransform.getAppliedTranslationY(fullscreenProgress)
+
+    private fun hasAxStackTransform(): Boolean = axStackTransform.isActive()
+
+    private fun applyAxStackDepth() {
+        val targetElevation = axStackTransform.getAppliedDepth(fullscreenProgress) * axStackElevationScale
+        if (kotlin.math.abs(elevation - targetElevation) > 1f) {
+            elevation = targetElevation
+        }
+    }
+
+    private fun applyAxStackAlpha() {
+        val alpha = axStackTransform.getAppliedAlpha(fullscreenProgress)
+        appliedAxStackAlpha = alpha
+        if (alpha <= 0f) {
+            if (!axStackHidden) {
+                visibility = INVISIBLE
+                axStackHidden = true
+            }
+            return
+        }
+        if (axStackHidden) {
+            visibility = VISIBLE
+            axStackHidden = false
+        }
     }
 
     private fun onGridProgressChanged() {
@@ -2143,13 +2307,26 @@ constructor(
 
     protected open fun onFullscreenProgressChanged(fullscreenProgress: Float) {
         if (!enableOverviewIconMenu()) {
-            getTaskIcons().forEach { (icon, _) ->
+            val axStackIconAlpha = axStackTransform.getIconAlpha()
+            taskContainers.forEach {
+                val icon = it.iconView
                 icon.asView().visibility = if (fullscreenProgress < 1) VISIBLE else INVISIBLE
+                if (axStackIconAlpha != 1f) {
+                    setAxStackIconAlpha(icon, axStackIconAlpha)
+                }
             }
         }
         taskContainers.forEach { it.overlay.setFullscreenProgress(fullscreenProgress) }
         updateSettledProgressFullscreen(fullscreenProgress)
-        updateFullscreenParams()
+        if (hasAxStackTransform()) {
+            applyTranslationX()
+            applyTranslationY()
+            applyAxStackDepth()
+            applyAxStackAlpha()
+            applyScale()
+        } else {
+            updateFullscreenParams()
+        }
     }
 
     protected fun updateSettledProgressFullscreen(fullscreenProgress: Float) {
@@ -2201,13 +2378,18 @@ constructor(
             it.snapshotView.translationX = 0f
             it.snapshotView.translationY = 0f
         }
+        axLaunchAlpha = 1f
+        resetAxStackTransform()
         resetViewTransforms()
     }
 
     fun resetViewTransforms() {
         // Dismiss translation shouldn't reset if actively being dragged
-        if (!isBeingDraggedForDismissal) {
+        if (!isBeingDraggedForDismissal &&
+            (recentsView?.isAxionOverviewEnabled() != true || !isBeingDismissed)) {
             secondaryDismissTranslationProperty.setValue(this, 0f)
+            dismissAlpha = 1f
+            taskContainers.forEach { it.iconView.setDismissAlpha(1f) }
         }
         primaryDismissTranslationProperty.setValue(this, 0f)
 
@@ -2259,6 +2441,9 @@ constructor(
             Attach,
             Split,
             Modal,
+            AxStack,
+            AxLaunch,
+            Dismiss,
         }
 
         private enum class SettledProgress {
@@ -2328,5 +2513,22 @@ constructor(
         val DISMISS_SCALE: FloatProperty<TaskView> = KFloatProperty(TaskView::dismissScale)
 
         @JvmField val SPLIT_ALPHA: FloatProperty<TaskView> = KFloatProperty(TaskView::splitAlpha)
+
+        @VisibleForTesting
+        fun calculateDismissAlpha(
+            displacement: Float,
+            dismissLength: Float,
+            isGoingUp: Boolean,
+        ): Float {
+            val dismissDistance = if (isGoingUp) abs(displacement) else 0f
+            val fadeStart = 0f
+            val fadeEnd = abs(dismissLength)
+            if (fadeEnd <= 0f || fadeEnd <= fadeStart) {
+                return if (fadeEnd > 0f && dismissDistance >= fadeEnd) 0f else 1f
+            }
+            val fadeProgress =
+                ((dismissDistance - fadeStart) / (fadeEnd - fadeStart)).coerceIn(0f, 1f)
+            return 1f - fadeProgress
+        }
     }
 }

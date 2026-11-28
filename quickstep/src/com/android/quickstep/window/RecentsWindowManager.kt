@@ -296,6 +296,11 @@ constructor(
         theme.applyStyle(overviewBlurStyleResId, true)
         windowView = layoutInflater.inflate(R.layout.fallback_recents_activity, null)
         windowView?.let {
+            it.findViewById<android.view.ViewStub>(R.id.overview_actions_view_stub)?.apply {
+                layoutResource = com.android.quickstep.util.AxionOverview.getActionsLayout(
+                    this@RecentsWindowManager, getDeviceProfile())
+                inflate()
+            }
             actionsView = it.findViewById(R.id.overview_actions_view)
             recentsView =
                 it.findViewById<FallbackRecentsView<RecentsWindowManager>?>(R.id.overview_panel)

@@ -239,11 +239,13 @@
     </style>
 
     <style name="OverviewActionsContainer">
+        <item name="overviewActionCircleButtonBackground">@drawable/overview_action_circle_bg</item>
         <item name="buttonStyle">@style/OverviewActionButton</item>
         <item name="android:buttonStyle">@style/OverviewActionButton</item>
     </style>
 
     <style name="OverviewActionsContainerBlur">
+        <item name="overviewActionCircleButtonBackground">@drawable/overview_action_circle_bg_blur</item>
         <item name="buttonStyle">@style/OverviewActionButton.Blur</item>
         <item name="android:buttonStyle">@style/OverviewActionButton.Blur</item>
     </style>

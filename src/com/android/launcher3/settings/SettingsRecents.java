@@ -103,6 +103,7 @@ public class SettingsRecents extends ComposeSettingsActivity
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         if (LauncherPrefs.RECENTS_MEMINFO.getSharedPrefKey().equals(key)
                 || LauncherPrefs.RECENTS_NEW_OVERVIEW_STYLE.getSharedPrefKey().equals(key)
+                || LauncherPrefs.RECENTS_AXION_OVERVIEW.getSharedPrefKey().equals(key)
                 || LauncherPrefs.RECENTS_LEGACY_CARD_SIZE.getSharedPrefKey().equals(key)
                 || LauncherPrefs.RECENTS_LEGACY_CARD_TOP_MARGIN.getSharedPrefKey().equals(key)
                 || LauncherPrefs.RECENTS_LEGACY_BUTTON_TOP_MARGIN.getSharedPrefKey().equals(key)
@@ -164,6 +165,7 @@ public class SettingsRecents extends ComposeSettingsActivity
 
             DisplayController.Info info = DisplayController.INSTANCE.get(getContext()).getInfo();
             if (key.equals(RECENTS_CATEGORY_ACTION) || key.equals(RECENTS_STYLE_PREF)
+                    || key.equals(LauncherPrefs.RECENTS_AXION_OVERVIEW.getSharedPrefKey())
                     || key.equals(RECENTS_CATEGORY_NORMAL_LAYOUT)
                     || key.equals(RECENTS_CATEGORY_REDESIGNED_LAYOUT)) {
                 return !info.isTablet(info.realBounds);
@@ -181,14 +183,20 @@ public class SettingsRecents extends ComposeSettingsActivity
             SharedPreferences prefs = getPreferenceManager().getSharedPreferences();
             boolean newStyle = prefs.getBoolean(
                     LauncherPrefs.RECENTS_NEW_OVERVIEW_STYLE.getSharedPrefKey(), true);
+            boolean axion = findPreference(LauncherPrefs.RECENTS_AXION_OVERVIEW.getSharedPrefKey()) != null
+                    && prefs.getBoolean(LauncherPrefs.RECENTS_AXION_OVERVIEW.getSharedPrefKey(), false);
+            Preference newOverview = findPreference(LauncherPrefs.RECENTS_NEW_OVERVIEW_STYLE.getSharedPrefKey());
+            Preference carouselStyle = findPreference(RECENTS_STYLE_PREF);
+            if (newOverview != null) newOverview.setVisible(!axion);
+            if (carouselStyle != null) carouselStyle.setVisible(!axion);
             Preference normal = findPreference(RECENTS_CATEGORY_NORMAL_LAYOUT);
             Preference redesigned = findPreference(RECENTS_CATEGORY_REDESIGNED_LAYOUT);
             // Keep both groups attached so switching styles never resets their values.
             if (normal != null) {
-                normal.setVisible(!newStyle);
+                normal.setVisible(!axion && !newStyle);
             }
             if (redesigned != null) {
-                redesigned.setVisible(newStyle);
+                redesigned.setVisible(!axion && newStyle);
             }
         }
 
@@ -210,6 +218,7 @@ public class SettingsRecents extends ComposeSettingsActivity
         @Override
         public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
             if (LauncherPrefs.RECENTS_NEW_OVERVIEW_STYLE.getSharedPrefKey().equals(key)
+                    || LauncherPrefs.RECENTS_AXION_OVERVIEW.getSharedPrefKey().equals(key)
                     || key == null) {
                 updateOverviewLayoutVisibility();
             }

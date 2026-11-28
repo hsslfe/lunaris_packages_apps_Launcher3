@@ -35,6 +35,13 @@
     <dimen name="recents_action_secondary_row_height">60dp</dimen>
     <dimen name="recents_action_row_bottom_margin">16dp</dimen>
 
+    <!-- Axion overview values, isolated from the existing styles. -->
+    <dimen name="axion_overview_actions_btn_size">40dp</dimen>
+    <dimen name="axion_overview_actions_stack_height">96dp</dimen>
+    <dimen name="axion_overview_actions_clear_all_width">160dp</dimen>
+    <dimen name="axion_overview_actions_clear_all_top_margin">16dp</dimen>
+    <dimen name="axion_overview_actions_top_margin">24dp</dimen>
+
     <!-- Overview style legacy values -->
     <dimen name="overview_actions_height_legacy">48dp</dimen>
     <dimen name="overview_actions_top_margin_legacy">24dp</dimen>

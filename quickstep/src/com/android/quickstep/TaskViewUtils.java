@@ -187,6 +187,9 @@ public final class TaskViewUtils {
             @Nullable TransitionInfo transitionInfo,
             int appearedTaskId,
             PendingAnimation out) {
+        if (!skipViewChanges) {
+            recentsView.prepareTaskForLaunch(taskView);
+        }
         boolean isQuickSwitch = taskView.isEndQuickSwitchCuj();
         taskView.setEndQuickSwitchCuj(false);
 
@@ -276,6 +279,21 @@ public final class TaskViewUtils {
         if (!taskView.isRunningTask()) {
             initTaskViewSimulatorsForRemoteTargetHandles(
                     Arrays.asList(remoteTargetHandles), dp, recentsView, taskView, out);
+        } else if (recentsView.isAxionOverviewEnabled()) {
+            int scrollOffset = recentsView.getScrollOffset(
+                    recentsView.indexOfChild(taskView));
+            for (RemoteTargetHandle handle : remoteTargetHandles) {
+                TaskViewSimulator tvsLocal = handle.getTaskViewSimulator();
+                tvsLocal.setDp(dp);
+                tvsLocal.fullScreenProgress.value = 0;
+                tvsLocal.recentsViewScale.value = 1;
+                tvsLocal.recentsViewScroll.value = scrollOffset;
+                tvsLocal.setAxStackTransform(
+                        taskView.getAxStackScale(),
+                        taskView.getAxStackTranslationX(),
+                        taskView.getAxStackTranslationY(),
+                        taskView.getAxStackAlpha());
+            }
         }
 
         for (RemoteTargetHandle targetHandle : remoteTargetHandles) {
@@ -937,6 +955,11 @@ public final class TaskViewUtils {
             }
             tvsLocal.recentsViewScroll.value = scrollOffset;
             tvsLocal.taskSecondaryTranslation.value = gridTranslationY;
+            tvsLocal.setAxStackTransform(
+                    taskView.getAxStackScale(),
+                    taskView.getAxStackTranslationX(),
+                    taskView.getAxStackTranslationY(),
+                    taskView.getAxStackAlpha());
 
             if (taskView instanceof DesktopTaskView) {
                 handle.getTransformParams().setTargetAlpha(1f);

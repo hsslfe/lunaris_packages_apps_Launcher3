@@ -388,10 +388,14 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
     public final void calculateTaskSize(Context context, DeviceProfile dp, Rect outRect,
             RecentsPagedOrientationHandler orientationHandler, @Nullable Rect defaultTaskSize) {
         calculateDefaultTaskSize(context, dp, outRect, orientationHandler);
+        boolean axion = com.android.quickstep.util.AxionOverview.isEnabled(context, dp);
+        if (axion && orientationHandler.isLayoutNaturalToLauncher()) {
+            com.android.quickstep.util.AxionOverview.adjustTaskRect(context, dp, outRect);
+        }
         if (defaultTaskSize != null) {
             defaultTaskSize.set(outRect);
         }
-        if (RecentsLayoutCustomization.isSupported(dp, orientationHandler)) {
+        if (!axion && RecentsLayoutCustomization.isSupported(dp, orientationHandler)) {
             RecentsLayoutCustomization.applyCard(context, dp, outRect);
         }
     }
@@ -408,6 +412,10 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
             int overviewActionsClaimedSpace = orientationHandler.isLayoutNaturalToLauncher()
                     ? dp.getOverviewActionsClaimedSpace()
                     : dp.getOverviewProfile().getActionsTopMarginPx();
+            if (orientationHandler.isLayoutNaturalToLauncher()
+                    && com.android.quickstep.util.AxionOverview.isEnabled(context, dp)) {
+                overviewActionsClaimedSpace = com.android.quickstep.util.AxionOverview.claimedSpace(context, dp);
+            }
             calculateTaskSizeInternal(
                     context,
                     dp,

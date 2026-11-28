@@ -160,9 +160,8 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
         mFallbackRecentsView = rootView.findViewById(R.id.overview_panel);
 
         ViewStub actionsStub = rootView.findViewById(R.id.overview_actions_view_stub);
-        actionsStub.setLayoutResource(LauncherPrefs.RECENTS_NEW_OVERVIEW_STYLE.get(this)
-                ? R.layout.overview_actions_container
-                : R.layout.overview_actions_container_legacy);
+        actionsStub.setLayoutResource(com.android.quickstep.util.AxionOverview.getActionsLayout(
+                this, getDeviceProfile()));
         actionsStub.inflate();
 
         mActionsView = rootView.findViewById(R.id.overview_actions_view);

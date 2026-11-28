@@ -169,6 +169,7 @@ public class TaskViewTouchControllerDeprecated<
     @Override
     public void onAnimationCancel(Animator animation) {
         if (mCurrentAnimation != null && animation == mCurrentAnimation.getTarget()) {
+            mRecentsView.onTaskDismissDragEnded(false);
             clearState();
         }
     }
@@ -372,6 +373,14 @@ public class TaskViewTouchControllerDeprecated<
         // Drag-up matches drag-down: always track finger across the full range.
         mCurrentAnimation.setPlayFraction(
                 Utilities.boundToRange(totalDisplacement * mProgressMultiplier, 0, 1));
+        if (mRecentsView.isAxionOverviewEnabled() && mTaskBeingDragged != null) {
+            if (isGoingUp) {
+                float currentDisplacement = mTaskBeingDragged.getSecondaryDismissTranslationProperty().get(mTaskBeingDragged);
+                mRecentsView.onTaskDismissDragUpdated(mTaskBeingDragged, currentDisplacement, Math.abs(mEndDisplacement) * 2);
+            } else {
+                mRecentsView.onTaskDismissDragUpdated(mTaskBeingDragged, 0, 0);
+            }
+        }
 
         return true;
     }
@@ -467,6 +476,7 @@ public class TaskViewTouchControllerDeprecated<
         animationDuration = Utilities.boundToRange(animationDuration,
                 MIN_TASK_DISMISS_ANIMATION_DURATION, MAX_TASK_DISMISS_ANIMATION_DURATION);
 
+        mRecentsView.onTaskDismissDragEnded(mCurrentAnimationIsGoingUp && goingToEnd);
         mCurrentAnimation.setEndAction(this::clearState);
         mCurrentAnimation.startWithVelocity(mContainer, goingToEnd, Math.abs(velocity),
                 mEndDisplacement, animationDuration);

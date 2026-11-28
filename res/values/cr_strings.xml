@@ -560,6 +560,10 @@
     <string name="samsung_style_shape_title">Samsung Style</string>
     <string name="stretched_shape_title">Stretched</string>
 
+    <string name="recents_axion_overview_title">Axion overview style</string>
+    <string name="recents_axion_overview_summary">Use the Axion overview layout and action buttons</string>
+    <string name="recents_axion_lock">Lock app</string>
+    <string name="recents_axion_unlock">Unlock app</string>
     <string name="recents_overview_style_title">New overview style</string>
     <string name="recents_overview_style_summary">Use redesigned action buttons in recents</string>
     <string name="recents_normal_layout_title">Normal overview layout</string>

@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2020 The Android Open Source Project
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<com.android.quickstep.views.OverviewActionsView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center_horizontal|bottom"
+    android:theme="?attr/overviewActionsContainerStyle"
+    tools:ignore="ButtonStyle">
+
+    <LinearLayout
+        android:id="@+id/action_buttons"
+        android:layout_width="wrap_content"
+        android:layout_height="@dimen/axion_overview_actions_stack_height"
+        android:layout_gravity="bottom|center_horizontal"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/action_button_row"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/axion_overview_actions_btn_size"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/action_lock"
+                android:layout_width="@dimen/axion_overview_actions_btn_size"
+                android:layout_height="@dimen/axion_overview_actions_btn_size"
+                android:background="?attr/overviewActionCircleButtonBackground"
+                android:contentDescription="@string/recents_axion_lock"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:padding="0dp"
+                android:scaleType="center"
+                android:src="@drawable/ic_app_unlocked"
+                android:tint="@color/overview_button" />
+
+            <ImageButton
+                android:id="@+id/action_screenshot"
+                android:layout_width="@dimen/axion_overview_actions_btn_size"
+                android:layout_height="@dimen/axion_overview_actions_btn_size"
+                android:layout_marginStart="@dimen/overview_actions_button_spacing"
+                android:background="?attr/overviewActionCircleButtonBackground"
+                android:contentDescription="@string/action_screenshot"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:padding="0dp"
+                android:scaleType="center"
+                android:src="@drawable/ic_screenshot"
+                android:tint="@color/overview_button" />
+
+            <ImageButton
+                android:id="@+id/action_split"
+                android:layout_width="@dimen/axion_overview_actions_btn_size"
+                android:layout_height="@dimen/axion_overview_actions_btn_size"
+                android:layout_marginStart="@dimen/overview_actions_button_spacing"
+                android:background="?attr/overviewActionCircleButtonBackground"
+                android:contentDescription="@string/action_split"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:padding="0dp"
+                android:scaleType="center"
+                android:tint="@color/overview_button"
+                android:visibility="gone" />
+
+            <ImageButton
+                android:id="@+id/action_freeform"
+                android:layout_width="@dimen/axion_overview_actions_btn_size"
+                android:layout_height="@dimen/axion_overview_actions_btn_size"
+                android:layout_marginStart="@dimen/overview_actions_button_spacing"
+                android:background="?attr/overviewActionCircleButtonBackground"
+                android:contentDescription="@string/recent_task_option_freeform"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:padding="0dp"
+                android:scaleType="center"
+                android:src="@drawable/ic_overview_freeform"
+                android:tint="@color/overview_button"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/action_clear_all"
+            android:layout_width="@dimen/axion_overview_actions_clear_all_width"
+            android:layout_height="@dimen/axion_overview_actions_btn_size"
+            android:layout_marginTop="@dimen/axion_overview_actions_clear_all_top_margin"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:text="@string/recents_clear_all_title" />
+
+    </LinearLayout>
+
+    <!-- Currently, the only "group action button" is this save app pair button. If more are added,
+    a new LinearLayout may be needed to contain them, but beware of increased memory usage. -->
+    <ImageButton
+        android:id="@+id/action_save_app_pair"
+        android:layout_width="@dimen/axion_overview_actions_btn_size"
+        android:layout_height="@dimen/axion_overview_actions_btn_size"
+        android:background="?attr/overviewActionCircleButtonBackground"
+        android:contentDescription="@string/action_save_app_pair"
+        android:tint="@color/overview_button"
+        android:padding="0dp"
+        android:scaleType="center"
+        android:layout_gravity="bottom|center_horizontal"
+        android:visibility="gone" />
+
+    <!-- Lock pill indicator shown during swipe-down-to-lock gesture -->
+    <FrameLayout
+        android:id="@+id/lock_pill_container"
+        android:layout_width="wrap_content"
+        android:layout_height="44dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="96dp"
+        android:visibility="gone"
+        android:elevation="4dp"
+        android:background="@drawable/bg_overview_actions_button"
+        android:backgroundTint="@color/materialColorSecondaryContainer">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="18dp"
+            android:paddingEnd="20dp">
+
+            <ImageView
+                android:id="@+id/lock_pill_icon"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:src="@drawable/ic_protected_locked"
+                android:tint="@color/materialColorOnSecondaryContainer"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/lock_pill_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="@string/lock_app_prompt"
+                android:textColor="@color/materialColorOnSecondaryContainer"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.01" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+</com.android.quickstep.views.OverviewActionsView>

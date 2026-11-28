@@ -82,6 +82,7 @@ CONTAINER : StatefulContainer<T> {
         object : StateListener<T> {
             override fun onStateTransitionStart(toState: T) {
                 springAnimation?.cancel()
+                recentsView.onTaskDismissDragEnded(false)
                 clearState()
             }
         }
@@ -246,6 +247,11 @@ CONTAINER : StatefulContainer<T> {
                     taskBeingDragged,
                     currentDisplacement,
                 )
+                recentsView.onTaskDismissDragUpdated(
+                    taskBeingDragged,
+                    currentDisplacement,
+                    dismissLength.toFloat(),
+                )
                 if (taskBeingDragged.isRunningTask && recentsView.enableDrawingLiveTile) {
                     recentsView.runActionOnRemoteHandles { remoteTargetHandle ->
                         remoteTargetHandle.taskViewSimulator.taskSecondaryTranslation.value =
@@ -254,11 +260,7 @@ CONTAINER : StatefulContainer<T> {
                     recentsView.redrawLiveTile()
                 }
             }
-
-        // Add a tiny bit of translation Z, so that it draws on top of other views. This is relevant
-        // (e.g.) when we dismiss a task by sliding it upward: if there is a row of icons above, we
-        // want the dragged task to stay above all other views.
-        taskBeingDragged.translationZ = 0.1f
+        if (!recentsView.isAxionOverviewEnabled()) taskBeingDragged.translationZ = 0.1f
     }
 
     private fun getBoundedDisplacement(boundedDisplacement: Float, maxDisplacement: Float): Float =
@@ -289,6 +291,11 @@ CONTAINER : StatefulContainer<T> {
             } * verticalFactor
         val dismissFraction = displacement / (dismissLength * verticalFactor).toFloat()
         taskDragDisplacementValue?.input = totalDisplacement
+        recentsView.onTaskDismissDragUpdated(
+            taskBeingDragged,
+            totalDisplacement,
+            dismissLength.toFloat(),
+        )
         RECENTS_SCALE_PROPERTY.setValue(recentsView, getRecentsScale(dismissFraction))
         playDismissThresholdHaptic(displacement)
         return true
@@ -331,6 +338,7 @@ CONTAINER : StatefulContainer<T> {
                 (isBeyondDismissThreshold && !isFlingingTowardsRestState)
         val dismissThreshold = (DISMISS_THRESHOLD_FRACTION * dismissLength * verticalFactor).toInt()
         val finalPosition = if (isDismissing) (dismissLength * verticalFactor).toFloat() else 0f
+        recentsView.onTaskDismissDragEnded(isDismissing)
         springAnimation =
             recentsView.runTaskDismissSettlingSpringAnimation(
                 taskBeingDragged,

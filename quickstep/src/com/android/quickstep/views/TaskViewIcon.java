@@ -42,6 +42,10 @@ public interface TaskViewIcon {
      */
     void setFlexSplitAlpha(float alpha);
 
+    default void setAxStackAlpha(float alpha) {}
+
+    default void setDismissAlpha(float alpha) {}
+
     /**
      * Returns this icon view's drawable.
      */
